@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HoneyCloud · Threat Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #050810;
+      --surface: #0b1120;
+      --border:  #1a2a45;
+      --accent:  #00d4ff;
+      --accent2: #7b2fff;
+      --danger:  #ff3b5c;
+      --ok:      #00e676;
+      --text:    #c9d8f0;
+      --muted:   #4a6080;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── Grid background ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.035) 1px, transparent 1px);
+      background-size: 48px 48px;
+      animation: gridDrift 24s linear infinite;
+    }
+    @keyframes gridDrift { to { background-position: 48px 48px; } }
+
+    /* ── Scanline ── */
+    body::after {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.06) 2px, rgba(0,0,0,.06) 4px);
+    }
+
+    /* ── Glow orbs ── */
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(100px); pointer-events: none; z-index: 0;
+    }
+    .orb-1 { width: 600px; height: 600px; background: rgba(0,212,255,.055); top: -180px; left: -180px; animation: orbFloat1 18s ease-in-out infinite; }
+    .orb-2 { width: 500px; height: 500px; background: rgba(123,47,255,.05); bottom: -140px; right: -140px; animation: orbFloat2 22s ease-in-out infinite; }
+    .orb-3 { width: 300px; height: 300px; background: rgba(255,59,92,.03); top: 50%; left: 50%; transform: translate(-50%,-50%); animation: orbFloat1 14s ease-in-out infinite reverse; }
+    @keyframes orbFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,20px)} }
+    @keyframes orbFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-25px,-15px)} }
+
+    /* ── Content ── */
+    .wrap {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+      gap: 0;
+    }
+
+    /* ── Status bar top ── */
+    .status-bar {
+      display: flex; align-items: center; gap: .5rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .62rem; letter-spacing: .2em;
+      color: var(--muted); margin-bottom: 2.8rem;
+      animation: fadeUp .6s ease-out both;
+    }
+    .status-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 8px var(--ok);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Logo ── */
+    .logo-mark {
+      font-size: 2.8rem; line-height: 1;
+      color: var(--accent); margin-bottom: .5rem;
+      animation: fadeUp .7s .05s ease-out both;
+    }
+    .brand {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      font-weight: 900; letter-spacing: .2em;
+      color: var(--accent);
+      text-shadow: 0 0 60px rgba(0,212,255,.4), 0 0 120px rgba(0,212,255,.15);
+      line-height: 1; margin-bottom: .6rem;
+      animation: fadeUp .7s .1s ease-out both;
+    }
+    .brand-x {
+      color: var(--text);
+      text-shadow: none;
+    }
+    .brand-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .75rem; letter-spacing: .3em;
+      color: var(--muted); margin-bottom: 3.5rem;
+      animation: fadeUp .7s .2s ease-out both;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      width: 320px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border) 30%, var(--border) 70%, transparent);
+      margin-bottom: 3.5rem;
+      animation: fadeUp .7s .25s ease-out both;
+    }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: flex; gap: 3rem; margin-bottom: 3.5rem;
+      animation: fadeUp .7s .3s ease-out both;
+    }
+    .stat-item { text-align: center; }
+    .stat-num {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.6rem; font-weight: 700;
+      color: var(--text); line-height: 1;
+    }
+    .stat-lbl {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .58rem; letter-spacing: .15em;
+      color: var(--muted); margin-top: .3rem;
+    }
+    .stat-sep { width: 1px; background: var(--border); }
+
+    /* ── CTA button ── */
+    .cta-wrap {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 1rem;
+      animation: fadeUp .7s .4s ease-out both;
+    }
+    .btn-cta {
+      position: relative; overflow: hidden;
+      display: inline-flex; align-items: center; gap: .7rem;
+      padding: .9rem 2.4rem;
+      border: 1px solid var(--accent);
+      background: transparent; color: var(--accent);
+      font-family: 'Orbitron', monospace;
+      font-size: .85rem; letter-spacing: .2em;
+      cursor: pointer; text-decoration: none;
+      transition: color .25s;
+    }
+    .btn-cta::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--accent);
+      transform: translateX(-100%);
+      transition: transform .28s ease; z-index: 0;
+    }
+    .btn-cta:hover { color: var(--bg); }
+    .btn-cta:hover::before { transform: translateX(0); }
+    .btn-cta span { position: relative; z-index: 1; }
+    .btn-cta .arr { transition: transform .25s; position: relative; z-index: 1; }
+    .btn-cta:hover .arr { transform: translateX(4px); }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .6rem 1.4rem;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: .85rem; font-weight: 600; letter-spacing: .1em;
+      cursor: pointer; text-decoration: none;
+      transition: all .2s;
+    }
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ── Footer ── */
+    .footer {
+      position: fixed; bottom: 1.5rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .58rem; color: var(--muted);
+      letter-spacing: .15em; text-align: center;
+      animation: fadeUp .6s .6s ease-out both;
+    }
+
+    /* ── Corner decorations ── */
+    .corner {
+      position: fixed;
+      width: 40px; height: 40px;
+      pointer-events: none;
+    }
+    .corner.tl { top: 20px; left: 20px; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+    .corner.tr { top: 20px; right: 20px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); }
+    .corner.bl { bottom: 20px; left: 20px; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); }
+    .corner.br { bottom: 20px; right: 20px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+
+    /* ── Loading bar ── */
+    .loading-bar {
+      position: fixed; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
+      animation: barSweep 2s ease-in-out infinite;
+    }
+    @keyframes barSweep { 0%{opacity:0;transform:translateX(-100%)} 50%{opacity:1} 100%{opacity:0;transform:translateX(100%)} }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+  <div class="loading-bar" id="loading-bar"></div>
+
+  <div class="wrap">
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      SYSTEM ONLINE · ALL SENSORS ACTIVE
+    </div>
+
+    <div class="logo-mark">◈</div>
+    <div class="brand">HONEY<span class="brand-x">CLOUD</span></div>
+    <div class="brand-sub">THREAT INTELLIGENCE PLATFORM · v2.0</div>
+
+    <div class="divider"></div>
+
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-num" id="s-events">—</div>
+        <div class="stat-lbl">EVENTS</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <div class="stat-num" id="s-ips">—</div>
+        <div class="stat-lbl">ATTACKERS</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <div class="stat-num" id="s-critical">—</div>
+        <div class="stat-lbl">CRITICAL</div>
+      </div>
+    </div>
+
+    <div class="cta-wrap">
+      <a class="btn-cta" id="enter-btn" href="/login.html">
+        <span>ENTER PLATFORM</span>
+        <span class="arr">→</span>
+      </a>
+      <a class="btn-secondary" href="/dashboard.html">SKIP TO DASHBOARD</a>
+    </div>
+  </div>
+
+  <div class="footer">
+    HONEYCLOUD · SECURE ACCESS · ENCRYPTED SESSION · AUDIT LOGGED
+  </div>
+
+  <script>
+    const API = '/api/v1';
+
+    // Check for existing session
+    (function() {
+      const token = sessionStorage.getItem('hc_token');
+      if (!token) return;
+
+      // Validate token in background
+      fetch(`${API}/auth/me`, { headers: { Authorization: 'Bearer ' + token } })
+        .then(r => {
+          if (r.ok) {
+            // Already authenticated — update enter button to go straight to dashboard
+            const btn = document.getElementById('enter-btn');
+            btn.href = '/dashboard.html';
+            btn.querySelector('span').textContent = 'OPEN DASHBOARD';
+          }
+        })
+        .catch(() => {});
+    })();
+
+    // Load live stats
+    (function() {
+      const token = sessionStorage.getItem('hc_token');
+      if (!token) return;
+      fetch(`${API}/analytics/summary`, { headers: { Authorization: 'Bearer ' + token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d) return;
+          const fmt = n => Number(n).toLocaleString();
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          set('s-events',   fmt(d.total_events || 0));
+          set('s-ips',      fmt(d.unique_attackers || 0));
+          set('s-critical', fmt(d.critical_total || 0));
+          // Remove loading bar once data loaded
+          const lb = document.getElementById('loading-bar');
+          if (lb) lb.style.display = 'none';
+        })
+        .catch(() => {});
+    })();
+  </script>
+</body>
+</html>

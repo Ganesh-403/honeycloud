@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HoneyCloud· Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #050810;
+      --surface: #0b1120;
+      --surface2:#0f1a2e;
+      --border:  #1a2a45;
+      --border2: #243a5e;
+      --accent:  #00d4ff;
+      --accent2: #7b2fff;
+      --danger:  #ff3b5c;
+      --ok:      #00e676;
+      --text:    #c9d8f0;
+      --muted:   #4a6080;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── Grid background ── */
+    .bg-grid {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,.038) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.038) 1px, transparent 1px);
+      background-size: 44px 44px;
+      animation: gridDrift 20s linear infinite;
+    }
+    @keyframes gridDrift { to { background-position: 44px 44px; } }
+
+    /* ── Scanline ── */
+    .scanline {
+      position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.07) 2px, rgba(0,0,0,.07) 4px);
+    }
+
+    /* ── Glow orbs ── */
+    .orb { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; }
+    .orb-1 { width: 600px; height: 600px; background: rgba(0,212,255,.06); top: -200px; left: -150px; animation: orbDrift1 20s ease-in-out infinite; }
+    .orb-2 { width: 480px; height: 480px; background: rgba(123,47,255,.055); bottom: -160px; right: -120px; animation: orbDrift2 26s ease-in-out infinite; }
+    @keyframes orbDrift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,25px)} }
+    @keyframes orbDrift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,-20px)} }
+
+    /* ── Corner decorations ── */
+    .corner { position: fixed; width: 36px; height: 36px; pointer-events: none; z-index: 1; }
+    .corner.tl { top: 18px; left: 18px; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+    .corner.tr { top: 18px; right: 18px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); }
+    .corner.bl { bottom: 18px; left: 18px; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); }
+    .corner.br { bottom: 18px; right: 18px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+
+    /* ── Wrap ── */
+    .login-wrap {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; width: 100%;
+      padding: 1.5rem;
+    }
+
+    /* ── Header ── */
+    .brand-mark {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .9rem; color: var(--accent);
+      margin-bottom: .6rem;
+      animation: fadeDown .5s ease-out both;
+    }
+    .brand {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 900; letter-spacing: .22em;
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(0,212,255,.45), 0 0 80px rgba(0,212,255,.15);
+      margin-bottom: .4rem; line-height: 1;
+      animation: fadeDown .5s .05s ease-out both;
+    }
+    .brand-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .65rem; letter-spacing: .22em;
+      color: var(--muted); margin-bottom: 2.6rem;
+      animation: fadeDown .5s .1s ease-out both;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%; max-width: 380px;
+      background: rgba(11, 17, 32, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border2);
+      padding: 2.6rem 2.4rem 2.2rem;
+      position: relative; overflow: hidden;
+      animation: cardIn .5s .2s ease-out both;
+    }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: none; } }
+
+    /* Top accent line */
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--accent) 40%, var(--accent2) 70%, transparent 100%);
+    }
+    /* Corner notch */
+    .card::after {
+      content: '';
+      position: absolute; bottom: 0; right: 0;
+      width: 32px; height: 32px;
+      border-bottom: 1px solid var(--border2);
+      border-right: 1px solid var(--border2);
+    }
+
+    /* Card section label */
+    .card-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .62rem; letter-spacing: .2em;
+      color: var(--muted); margin-bottom: 1.8rem;
+      display: flex; align-items: center; gap: .6rem;
+    }
+    .card-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Fields ── */
+    .field { margin-bottom: 1.4rem; }
+    .field label {
+      display: flex; align-items: center; gap: .4rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .62rem; letter-spacing: .15em;
+      color: var(--muted); margin-bottom: .55rem;
+    }
+    .field label .ico { font-size: .75rem; }
+
+    .field-wrap {
+      position: relative;
+    }
+    .field input {
+      width: 100%;
+      background: rgba(0,0,0,.5);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .7rem 1rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+      letter-spacing: .05em;
+    }
+    .field input::placeholder { color: var(--muted); opacity: .5; }
+    .field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,212,255,.07), inset 0 0 12px rgba(0,212,255,.04);
+      background: rgba(0,212,255,.025);
+    }
+    .field input:focus ~ .field-glow { opacity: 1; }
+    .field-glow {
+      position: absolute; bottom: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0; transition: opacity .3s;
+      pointer-events: none;
+    }
+
+    /* Password toggle */
+    .pwd-toggle {
+      position: absolute; right: .8rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: .8rem; padding: .2rem;
+      transition: color .2s; line-height: 1;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    .pwd-toggle:hover { color: var(--accent); }
+
+    /* ── Submit button ── */
+    .btn-submit {
+      width: 100%; padding: .85rem;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: 'Orbitron', monospace;
+      font-size: .78rem; letter-spacing: .2em;
+      cursor: pointer; position: relative; overflow: hidden;
+      transition: color .22s;
+      margin-top: .4rem;
+    }
+    .btn-submit::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--accent);
+      transform: translateX(-100%);
+      transition: transform .24s; z-index: 0;
+    }
+    .btn-submit span { position: relative; z-index: 1; }
+    .btn-submit:hover:not(:disabled) { color: var(--bg); }
+    .btn-submit:hover:not(:disabled)::before { transform: translateX(0); }
+    .btn-submit:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-submit:disabled::before { display: none; }
+
+    /* ── Error ── */
+    #err {
+      min-height: 1.4rem; margin-top: .9rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .7rem; letter-spacing: .06em;
+      color: var(--danger); text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: .4rem;
+    }
+    #err:not(:empty)::before { content: '▲'; font-size: .6rem; }
+
+    /* ── Success ── */
+    .success-overlay {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,.9);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: .8rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s;
+      z-index: 10;
+    }
+    .success-overlay.show { opacity: 1; pointer-events: all; }
+    .success-icon {
+      font-size: 2rem; color: var(--ok);
+      text-shadow: 0 0 20px var(--ok);
+    }
+    .success-txt {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem; letter-spacing: .15em; color: var(--ok);
+    }
+
+    /* ── Footer ── */
+    .login-footer {
+      margin-top: 1.8rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .58rem; color: var(--muted);
+      letter-spacing: .12em; text-align: center;
+      display: flex; align-items: center; gap: .8rem;
+      animation: fadeDown .5s .5s ease-out both;
+    }
+    .login-footer .sep { color: var(--border2); }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block; width: 11px; height: 11px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin .6s linear infinite;
+      vertical-align: middle; margin-right: .35rem;
+    }
+
+    /* ── HUD indicators ── */
+    .hud-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .6rem 1.2rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .55rem; letter-spacing: .15em; color: var(--muted);
+      z-index: 2;
+      border-bottom: 1px solid rgba(26,42,69,.4);
+    }
+    .hud-bar .live {
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .hud-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--ok); box-shadow: 0 0 6px var(--ok);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="scanline"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <!-- HUD top bar -->
+  <div class="hud-bar">
+    <span>HONEYCLOUD · v2.0</span>
+    <div class="live"><div class="hud-dot"></div> SYSTEM ONLINE</div>
+    <span id="hud-time"></span>
+  </div>
+
+  <div class="login-wrap">
+    <!-- Brand -->
+    <div class="brand-mark">◈ SECURE ACCESS TERMINAL</div>
+    <div class="brand">HONEYCLOUD</div>
+    <div class="brand-sub">THREAT INTELLIGENCE PLATFORM</div>
+
+    <!-- Card -->
+    <div class="card">
+      <div class="card-label">AUTHENTICATION REQUIRED</div>
+
+      <div class="field">
+        <label><span class="ico">◉</span> USERNAME</label>
+        <div class="field-wrap">
+          <input id="u" type="text" value="admin" autocomplete="off" autofocus spellcheck="false" />
+          <div class="field-glow"></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label><span class="ico">⊕</span> PASSWORD</label>
+        <div class="field-wrap">
+          <input id="p" type="password" value="admin123" autocomplete="current-password" style="padding-right:3rem" />
+          <button class="pwd-toggle" type="button" id="pwd-btn" onclick="togglePwd()" title="Toggle visibility">SHOW</button>
+          <div class="field-glow"></div>
+        </div>
+      </div>
+
+      <button class="btn-submit" id="btn" onclick="login()">
+        <span id="btn-label">AUTHENTICATE →</span>
+      </button>
+
+      <div id="err"></div>
+
+      <!-- Success overlay -->
+      <div class="success-overlay" id="success-overlay">
+        <div class="success-icon">◈</div>
+        <div class="success-txt">ACCESS GRANTED · LOADING DASHBOARD…</div>
+      </div>
+    </div>
+
+    <div class="login-footer">
+      <span>SECURE ACCESS</span>
+      <span class="sep">·</span>
+      <span>ENCRYPTED SESSION</span>
+      <span class="sep">·</span>
+      <span>AUDIT LOGGED</span>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/v1';
+
+    // HUD clock
+    function updateClock() {
+      const el = document.getElementById('hud-time');
+      if (el) el.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Password toggle
+    function togglePwd() {
+      const inp = document.getElementById('p');
+      const btn = document.getElementById('pwd-btn');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = 'HIDE';
+      } else {
+        inp.type = 'password';
+        btn.textContent = 'SHOW';
+      }
+    }
+
+    // Enter key support
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') login();
+    });
+
+    async function login() {
+      const u    = document.getElementById('u').value.trim();
+      const p    = document.getElementById('p').value;
+      const err  = document.getElementById('err');
+      const btn  = document.getElementById('btn');
+      const lbl  = document.getElementById('btn-label');
+      err.textContent = '';
+
+      if (!u || !p) {
+        err.textContent = 'Credentials required';
+        shakeCard();
+        return;
+      }
+
+      btn.disabled = true;
+      lbl.innerHTML = '<span class="spinner"></span>AUTHENTICATING…';
+
+      const fd = new FormData();
+      fd.append('username', u);
+      fd.append('password', p);
+
+      try {
+        const r = await fetch(`${API}/auth/login`, { method: 'POST', body: fd });
+        const d = await r.json();
+
+        if (!r.ok) {
+          err.textContent = d.detail || 'Authentication failed.';
+          btn.disabled = false;
+          lbl.textContent = 'AUTHENTICATE →';
+          shakeCard();
+          return;
+        }
+
+        // Store session
+        sessionStorage.setItem('hc_token', d.access_token);
+        sessionStorage.setItem('hc_user',  d.username);
+        sessionStorage.setItem('hc_role',  d.role);
+
+        // Show success
+        lbl.textContent = 'ACCESS GRANTED';
+        document.getElementById('success-overlay').classList.add('show');
+        setTimeout(() => { window.location.href = '/dashboard.html'; }, 900);
+
+      } catch (e) {
+        err.textContent = '⚠ Connection error — is the API running?';
+        btn.disabled = false;
+        lbl.textContent = 'AUTHENTICATE →';
+      }
+    }
+
+    function shakeCard() {
+      const card = document.querySelector('.card');
+      card.style.animation = 'none';
+      card.offsetHeight; // reflow
+      card.style.animation = 'shake .35s ease-out';
+    }
+
+    // Inject shake keyframe
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes shake {
+        0%,100%{transform:translateX(0)}
+        20%{transform:translateX(-7px)}
+        40%{transform:translateX(7px)}
+        60%{transform:translateX(-5px)}
+        80%{transform:translateX(5px)}
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>

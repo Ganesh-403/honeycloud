@@ -1,0 +1,80 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HoneyCloud – Production Compose
+# Usage: docker compose up --build -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── FastAPI Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      target: runtime          # uses the lean multi-stage runtime stage
+    image: honeycloud-backend:latest
+    restart: unless-stopped
+    env_file: .env             # SECRET_KEY, DB URL, Telegram, etc.
+    environment:
+      - TZ=Asia/Kolkata
+      - WORKERS=2
+    ports:
+      - "8000:8000"
+    volumes:
+      - db_data:/app/data       # SQLite DB file
+      - reports_data:/app/reports
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # ── Nginx Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ── SSH Honeypot (separate exposed port) ────────────────────────────────────
+  # Uncomment once SSH host key is generated:
+  # ssh-honeypot:
+  #   image: honeycloud-backend:latest
+  #   restart: unless-stopped
+  #   env_file: .env
+  #   ports:
+  #     - "2222:2222"
+  #   command: python -m app.honeypots.ssh_honeypot
+  #   networks: [internal]
+
+  # ── FTP Honeypot ─────────────────────────────────────────────────────────────
+  # ftp-honeypot:
+  #   image: honeycloud-backend:latest
+  #   restart: unless-stopped
+  #   env_file: .env
+  #   ports:
+  #     - "2121:2121"
+  #   command: python -m app.honeypots.ftp_honeypot
+  #   networks: [internal]
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  db_data:
+  reports_data:
+
+# ── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge

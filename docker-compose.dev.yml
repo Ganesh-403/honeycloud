@@ -1,0 +1,27 @@
+version: "3.9"
+
+# Development overrides – use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: builder       # install deps stage (has gcc for hot-reload)
+    env_file: .env
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - WORKERS=1
+    volumes:
+      - ./backend/app:/app/app   # live mount – edits reflect instantly
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --log-level debug
+
+  frontend:
+    ports:
+      - "5173:80"   # match the Vite dev port convention
