@@ -1,4 +1,4 @@
-# 🍯 HoneyCloud-X
+# 🍯 Honey Cloud
 
 > **Smart Scalable Honeypot Platform** — capture, classify, and visualise
 > attack traffic across SSH, FTP, and HTTP using FastAPI, SQLAlchemy, ML threat
@@ -30,7 +30,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                         HoneyCloud-X                                 │
+│                         Honey Cloud                                  │
 │                                                                      │
 │  Browser                FastAPI Backend            Database          │
 │  ┌────────┐  HTTPS/WS  ┌──────────────────────┐  ┌──────────────┐  │
@@ -154,8 +154,8 @@ honeycloud/
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-org/honeycloud-x.git
-cd honeycloud-x
+git clone https://github.com/your-org/honeycloud.git
+cd honeycloud
 cp .env.example .env
 make gen-key          # updates .env SECRET_KEY with a strong secret
 # Review .env to set DATABASE_URL, TELEGRAM_*, rate limits, and honeypot ports.
