@@ -44,4 +44,4 @@ def get_db():
 
 def create_all_tables() -> None:
     """Create all tables that are registered on Base.metadata."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine, checkfirst=True)
