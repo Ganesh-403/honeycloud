@@ -6,7 +6,7 @@ from tests.conftest import SAMPLE_INGEST
 @pytest.fixture
 def seeded_ip(client):
     """Ingest 3 events from a fixed IP so a profile exists."""
-    ip = "10.20.30.40"
+    ip = "11.20.30.40"
     for sev in ("CRITICAL", "HIGH", "MEDIUM"):
         client.post("/api/v1/events/ingest", json={**SAMPLE_INGEST, "source_ip": ip, "severity": sev})
     return ip
