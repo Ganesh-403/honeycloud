@@ -219,7 +219,13 @@
     // HONEYPOT TRAP PAGE — each login attempt is logged to HoneyCloud dashboard
     // Share this page with friends on the same network to demonstrate attack capture
 
-    const API_BASE = "http://192.168.1.114:8000";
+    // Auto-detect API host: if file://, use localhost; if http://, use same host
+    const API_BASE = (() => {
+      if (location.protocol === "file:") {
+        return "http://localhost:8000";
+      }
+      return `http://${location.hostname}:8000`;
+    })();
     const INGEST_URL = `${API_BASE}/api/v1/events/ingest`;
 
     const form = document.getElementById("loginForm");
@@ -255,15 +261,19 @@
       };
 
       try {
-        await fetch(INGEST_URL, {
+        console.log("📤 Sending to:", INGEST_URL);
+        const response = await fetch(INGEST_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify(body)
         });
-      } catch (_) {
-        // Keep behavior silent to preserve the decoy illusion.
+        console.log("✅ Response status:", response.status);
+        const data = await response.json();
+        console.log("✅ Response data:", data);
+      } catch (error) {
+        console.error("❌ Fetch error:", error);
       }
     }
 

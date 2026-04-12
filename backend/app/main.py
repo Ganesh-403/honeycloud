@@ -89,16 +89,26 @@ def create_app() -> FastAPI:
     )
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    allowed_origins = list(settings.ALLOWED_ORIGINS)
-    if "null" not in allowed_origins:
-        allowed_origins.append("null")
-
+    # For development and honeypot testing, allow all HTTP origins on ingest
+    # Note: can't use ["*"] with allow_credentials=True, so use explicit patterns
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_origins=[
+            "http://localhost",
+            "http://localhost:5500",
+            "http://127.0.0.1",
+            "http://127.0.0.1:5500",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            "http://192.168.1.114",
+            "http://192.168.1.114:80",
+            "http://192.168.1.114:8080",
+            "null",  # file:// origins
+        ],
+        allow_credentials=False,  # Honeypot endpoint doesn't need credentials
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
     )
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
