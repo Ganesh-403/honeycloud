@@ -15,12 +15,12 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.api.deps import get_event_service
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.core.security import get_current_user
 from app.core.websocket_manager import ws_manager
 from app.schemas.auth import UserInDB
 from app.schemas.event import EventFilters, EventIngest, EventResponse, IngestResponse, LocationInfo
 from app.services.event_service import EventService
-from app.services.geo_service import resolve_ip
 
 router = APIRouter(prefix="/events", tags=["Events"])
 settings = get_settings()
@@ -42,6 +42,7 @@ def _get_real_ip(request: Request) -> str:
     status_code=201,
     summary="Ingest honeypot event (public)",
 )
+@limiter.limit("100/minute")
 def ingest_event(
     payload: EventIngest,
     request: Request,
@@ -53,7 +54,7 @@ def ingest_event(
     Returns 201 immediately; geo-IP lookup, profiling, and alerts
     execute as background tasks (non-blocking).
     """
-    source_ip = resolve_ip(payload.source_ip or _get_real_ip(request))
+    source_ip = payload.source_ip if payload.source_ip and payload.source_ip.strip() else _get_real_ip(request)
     event = svc.ingest(payload, source_ip, background_tasks=background_tasks)
     return IngestResponse(status="received", id=event.id)
 

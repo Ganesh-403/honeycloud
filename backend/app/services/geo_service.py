@@ -31,9 +31,9 @@ def _get_public_ip() -> str:
 
 
 def resolve_ip(ip: str | None) -> str:
-    """Return a routable IP, falling back to public IP for private/loopback."""
-    if not ip or _is_private(ip):
-        return _get_public_ip()
+    """Return the provided IP as-is, with a safe default for missing values."""
+    if not ip or ip in ("", "unknown"):
+        return "0.0.0.0"
     return ip
 
 
@@ -51,6 +51,16 @@ def lookup_location(ip: str) -> LocationInfo:
     Resolve geographic info for the given IP.
     Returns a LocationInfo with defaults on any failure.
     """
+    if _is_private(ip):
+        return LocationInfo(
+            city="Local Network",
+            country="LAN",
+            country_code="LN",
+            flag="🏠",
+            region="Private",
+            isp="Local ISP",
+        )
+
     try:
         r = requests.get(
             f"https://ipapi.co/{ip}/json/",

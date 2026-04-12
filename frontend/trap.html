@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AdminPortal - Internal Access Only</title>
+  <style>
+    :root {
+      --bg-1: #07111f;
+      --bg-2: #0f1e34;
+      --card: rgba(12, 24, 43, 0.92);
+      --line: rgba(123, 163, 217, 0.25);
+      --text: #e6f0ff;
+      --muted: #9bb0cc;
+      --accent: #66b7ff;
+      --danger: #ff7676;
+      --button: #1f5f9f;
+      --button-hover: #2f73b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 20%, rgba(51, 120, 194, 0.18), transparent 45%),
+        radial-gradient(circle at 80% 0%, rgba(13, 60, 120, 0.25), transparent 40%),
+        linear-gradient(140deg, var(--bg-1), var(--bg-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+      padding: 28px;
+      backdrop-filter: blur(8px);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 12px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      background: rgba(16, 39, 69, 0.95);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      letter-spacing: 0.2px;
+      font-weight: 650;
+    }
+
+    .tagline {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    form {
+      display: grid;
+      gap: 13px;
+      margin-top: 16px;
+    }
+
+    label {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      margin-top: 6px;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(9, 20, 35, 0.95);
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(102, 183, 255, 0.2);
+    }
+
+    button {
+      margin-top: 8px;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px;
+      font-weight: 700;
+      letter-spacing: 0.25px;
+      color: #f8fbff;
+      background: linear-gradient(180deg, var(--button-hover), var(--button));
+      cursor: pointer;
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button[disabled] {
+      opacity: 0.8;
+      cursor: wait;
+    }
+
+    .meta {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+
+    .meta a {
+      color: #9bc5ff;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+
+    .meta a:hover {
+      text-decoration: underline;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .error {
+      color: var(--danger);
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    footer {
+      margin-top: 16px;
+      text-align: center;
+      color: #89a2bf;
+      font-size: 0.8rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="header">
+      <div class="logo" aria-hidden="true">🔒</div>
+      <h1>AdminPortal - Internal Access Only</h1>
+      <p class="tagline">Authorized Personnel Only</p>
+    </div>
+
+    <form id="loginForm" autocomplete="off">
+      <label>
+        Username
+        <input id="username" name="username" type="text" required />
+      </label>
+
+      <label>
+        Password
+        <input id="password" name="password" type="password" required />
+      </label>
+
+      <div class="meta">
+        <a href="#" onclick="return false;">Forgot Password?</a>
+      </div>
+
+      <button id="loginBtn" type="submit">Login</button>
+    </form>
+
+    <div id="status" class="status" aria-live="polite"></div>
+
+    <footer>© 2025 Internal Systems. All rights reserved.</footer>
+  </main>
+
+  <script>
+    // HONEYPOT TRAP PAGE — each login attempt is logged to HoneyCloud dashboard
+    // Share this page with friends on the same network to demonstrate attack capture
+
+    const API_BASE = "http://192.168.1.114:8000";
+    const INGEST_URL = `${API_BASE}/api/v1/events/ingest`;
+
+    const form = document.getElementById("loginForm");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const loginBtn = document.getElementById("loginBtn");
+    const statusEl = document.getElementById("status");
+
+    function setAuthenticatingState() {
+      loginBtn.disabled = true;
+      statusEl.className = "status";
+      statusEl.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Authenticating...</span>';
+    }
+
+    function setErrorState() {
+      statusEl.className = "status error";
+      statusEl.textContent = "Invalid credentials. Please try again.";
+      loginBtn.disabled = false;
+      passwordInput.value = "";
+      passwordInput.focus();
+    }
+
+    async function sendAttempt(username, password) {
+      const body = {
+        service: "HTTP",
+        method: "POST",
+        endpoint: "/admin/login",
+        username,
+        password,
+        severity: "HIGH",
+        payload: "Login attempt via admin portal",
+        source_ip: null
+      };
+
+      try {
+        await fetch(INGEST_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+      } catch (_) {
+        // Keep behavior silent to preserve the decoy illusion.
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!username || !password) {
+        return;
+      }
+
+      setAuthenticatingState();
+      sendAttempt(username, password);
+
+      setTimeout(() => {
+        setErrorState();
+      }, 2000);
+    });
+  </script>
+</body>
+</html>
