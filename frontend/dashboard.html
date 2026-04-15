@@ -594,7 +594,6 @@
         <div class="page-title">THREAT <span>OVERVIEW</span></div>
         <div class="toolbar">
           <div class="live-badge"><div class="live-dot"></div>LIVE</div>
-          <button class="btn primary" onclick="runSimulate()">⚡ SIMULATE</button>
           <button class="btn" onclick="refreshAll()">↺ REFRESH</button>
         </div>
       </div>
@@ -1321,15 +1320,6 @@ function prependFeedRow(ev, animate = true) {
 function clearFeed() {
   feedRows = [];
   document.getElementById('feed-body').innerHTML = '';
-}
-
-// ── Simulate ──────────────────────────────────────────────────────
-
-async function runSimulate() {
-  toast('Generating 30 simulated attacks…');
-  await api('/simulate/?count=30', { method: 'POST' });
-  toast('Simulation complete', 'ok');
-  setTimeout(refreshOverview, 1200);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
