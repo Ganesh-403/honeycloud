@@ -662,7 +662,7 @@
           <div class="live-badge"><div class="live-dot"></div>WEBSOCKET</div>
           <select class="select" id="feed-filter-svc" onchange="applyFeedFilter()">
             <option value="">ALL SERVICES</option>
-            <option>SSH</option><option>FTP</option><option>HTTP</option>
+            <option>SSH</option><option>FTP</option><option>HTTP</option><option>TELNET</option>
           </select>
           <select class="select" id="feed-filter-sev" onchange="applyFeedFilter()">
             <option value="">ALL SEVERITIES</option>
@@ -1180,12 +1180,17 @@ async function showProfileDetail(ip) {
       <div class="profile-field"><div class="key">SERVICES</div><div class="val">${(p.services_targeted||[]).join(', ') || '—'}</div></div>
       <div class="profile-field"><div class="key">TOP USERNAME</div><div class="val" style="font-family:'Share Tech Mono',monospace">${p.top_username||'—'}</div></div>
       <div class="profile-field"><div class="key">TOP PASSWORD</div><div class="val" style="font-family:'Share Tech Mono',monospace">${p.top_password||'—'}</div></div>
+      <div class="profile-field"><div class="key">ABUSE SCORE</div><div class="val" style="color:${(p.abuse_score||0) > 50 ? 'var(--danger)' : 'var(--ok)'}">${p.abuse_score||0}%</div></div>
+      <div class="profile-field"><div class="key">ABUSEIPDB REPORTS</div><div class="val">${p.total_reports||0}</div></div>
+      <div class="profile-field"><div class="key">WHITELISTED</div><div class="val">${p.is_whitelisted ? '✓ YES' : 'NO'}</div></div>
+      <div class="profile-field"><div class="key">USAGE TYPE</div><div class="val">${p.usage_type||'—'}</div></div>
     </div>
     <div>
       ${p.brute_force_detected         ? '<span class="flag-pill">⚠ BRUTE FORCE</span>'       : ''}
       ${p.credential_stuffing_detected ? '<span class="flag-pill">⚠ CREDENTIAL STUFFING</span>' : ''}
       ${p.scanner_detected             ? '<span class="flag-pill" style="border-color:rgba(255,140,0,.3);color:var(--warn)">⚠ PORT SCANNER</span>' : ''}
       ${p.is_blocked                   ? '<span class="flag-pill">🔒 BLOCKED</span>'            : ''}
+      ${(p.abuse_score||0) > 75       ? '<span class="flag-pill" style="border-color:rgba(255,59,92,.3);color:var(--danger)">⚠ HIGH ABUSE SCORE</span>' : ''}
     </div>
     ${p.block_reason ? `<div style="margin-top:.6rem;font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted)">Block reason: ${p.block_reason}</div>` : ''}
   `;

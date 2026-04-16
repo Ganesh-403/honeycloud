@@ -64,11 +64,31 @@ async def lifespan(app: FastAPI):
     detector = get_ml_detector()
     logger.info("ML detector ready (trained=%s).", detector.is_ready)
 
+    # Start honeypots
+    from app.honeypots import HONEYPOT_TYPES
+    honeypots = {
+        "SSH": HONEYPOT_TYPES["SSH"](),
+        "FTP": HONEYPOT_TYPES["FTP"](),
+        "HTTP": HONEYPOT_TYPES["HTTP"](),
+        "TELNET": HONEYPOT_TYPES["TELNET"](),
+    }
+
+    await honeypots["SSH"].start(settings.SSH_HONEYPOT_PORT)
+    await honeypots["FTP"].start(settings.FTP_HONEYPOT_PORT)
+    await honeypots["HTTP"].start(settings.HTTP_HONEYPOT_PORT)
+    await honeypots["TELNET"].start(settings.TELNET_HONEYPOT_PORT)
+
     logger.info("API ready → http://localhost:8000%s", settings.API_V1_PREFIX)
     if settings.DEBUG:
         logger.info("Docs        → http://localhost:8000/docs")
 
     yield
+
+    # Stop honeypots
+    await honeypots["SSH"].stop()
+    await honeypots["FTP"].stop()
+    await honeypots["HTTP"].stop()
+    await honeypots["TELNET"].stop()
 
     logger.info("Shutting down %s.", settings.APP_NAME)
 

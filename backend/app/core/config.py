@@ -45,11 +45,13 @@ class Settings(BaseSettings):
 
     # ── Geo-IP ────────────────────────────────────────────────────────────────
     GEOIP_TIMEOUT_SECONDS: int = 5
+    ABUSEIPDB_API_KEY: str = ""
 
     # ── Honeypots ─────────────────────────────────────────────────────────────
     SSH_HONEYPOT_PORT: int = 2222
     FTP_HONEYPOT_PORT: int = 2121
     HTTP_HONEYPOT_PORT: int = 8080
+    TELNET_HONEYPOT_PORT: int = 2323
 
     # ── Reports ───────────────────────────────────────────────────────────────
     REPORTS_DIR: str = "reports"

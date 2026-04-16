@@ -11,7 +11,7 @@ import numpy as np
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-SERVICE_PORT_MAP: dict[str, int] = {"SSH": 22, "FTP": 21, "HTTP": 80, "EXTERNAL": 0}
+SERVICE_PORT_MAP: dict[str, int] = {"SSH": 22, "FTP": 21, "HTTP": 80, "TELNET": 23, "EXTERNAL": 0}
 
 DANGEROUS_PATTERNS: list[re.Pattern] = [
     re.compile(p, re.IGNORECASE) for p in [
@@ -39,6 +39,9 @@ FEATURE_NAMES = [
     "is_root_user",
     "is_anonymous_user",
     "has_command",
+    "abuse_score",
+    "total_reports",
+    "is_whitelisted",
 ]
 
 NUM_FEATURES = len(FEATURE_NAMES)
@@ -62,6 +65,12 @@ def extract(event: dict) -> np.ndarray:
     hour = _extract_hour(timestamp)
     danger_count = sum(1 for pat in DANGEROUS_PATTERNS if pat.search(command))
 
+    # Extract nested geo/abuse data if available
+    geo = event.get("geolocation") or {}
+    abuse_score = geo.get("abuse_score") or 0
+    total_reports = geo.get("total_reports") or 0
+    is_whitelisted = int(geo.get("is_whitelisted") or False)
+
     features = [
         SERVICE_PORT_MAP.get(service, 0),   # service_port
         len(username),                       # username_len
@@ -73,6 +82,9 @@ def extract(event: dict) -> np.ndarray:
         int(username.lower() in ("root", "admin", "administrator")),
         int(username.lower() in ("anonymous", "guest", "visitor", "")),
         int(bool(command)),                  # has_command
+        abuse_score,                         # abuse_score (from AbuseIPDB)
+        total_reports,                       # total_reports (from AbuseIPDB)
+        is_whitelisted,                      # is_whitelisted (from AbuseIPDB)
     ]
 
     return np.array(features, dtype=np.float32).reshape(1, -1)

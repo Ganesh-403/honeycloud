@@ -19,13 +19,17 @@ class LocationInfo(BaseModel):
     flag: str = "🌍"
     region: str = ""
     isp: str = "Unknown ISP"
+    abuse_score: int = 0
+    total_reports: int = 0
+    is_whitelisted: bool = False
+    usage_type: str = "Unknown"
 
 
 # ---------------------------------------------------------------------------
 # Ingest (public POST /api/v1/ingest)
 # ---------------------------------------------------------------------------
 
-VALID_SERVICES = {"SSH", "FTP", "HTTP", "EXTERNAL"}
+VALID_SERVICES = {"SSH", "FTP", "HTTP", "TELNET", "EXTERNAL"}
 VALID_SEVERITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 VALID_AI_LABELS = {"benign", "anomaly", "malicious", "unknown"}
 VALID_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "UNKNOWN"}
