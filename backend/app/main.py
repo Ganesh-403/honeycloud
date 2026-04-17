@@ -71,12 +71,16 @@ async def lifespan(app: FastAPI):
         "FTP": HONEYPOT_TYPES["FTP"](),
         "HTTP": HONEYPOT_TYPES["HTTP"](),
         "TELNET": HONEYPOT_TYPES["TELNET"](),
+        "SMTP": HONEYPOT_TYPES["SMTP"](),
+        "RDP": HONEYPOT_TYPES["RDP"](),
     }
 
     await honeypots["SSH"].start(settings.SSH_HONEYPOT_PORT)
     await honeypots["FTP"].start(settings.FTP_HONEYPOT_PORT)
     await honeypots["HTTP"].start(settings.HTTP_HONEYPOT_PORT)
     await honeypots["TELNET"].start(settings.TELNET_HONEYPOT_PORT)
+    await honeypots["SMTP"].start(settings.SMTP_HONEYPOT_PORT)
+    await honeypots["RDP"].start(settings.RDP_HONEYPOT_PORT)
 
     logger.info("API ready → http://localhost:8000%s", settings.API_V1_PREFIX)
     if settings.DEBUG:
@@ -89,6 +93,8 @@ async def lifespan(app: FastAPI):
     await honeypots["FTP"].stop()
     await honeypots["HTTP"].stop()
     await honeypots["TELNET"].stop()
+    await honeypots["SMTP"].stop()
+    await honeypots["RDP"].stop()
 
     logger.info("Shutting down %s.", settings.APP_NAME)
 

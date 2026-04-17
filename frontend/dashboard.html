@@ -662,7 +662,7 @@
           <div class="live-badge"><div class="live-dot"></div>WEBSOCKET</div>
           <select class="select" id="feed-filter-svc" onchange="applyFeedFilter()">
             <option value="">ALL SERVICES</option>
-            <option>SSH</option><option>FTP</option><option>HTTP</option><option>TELNET</option>
+            <option>SSH</option><option>FTP</option><option>HTTP</option><option>TELNET</option><option>SMTP</option><option>RDP</option>
           </select>
           <select class="select" id="feed-filter-sev" onchange="applyFeedFilter()">
             <option value="">ALL SEVERITIES</option>
@@ -1041,7 +1041,7 @@ function drawSeverity(counts) {
 
 function drawService(counts) {
   const labels = Object.keys(counts);
-  const colors = ['#00d4ff', '#7b2fff', '#ff8c00'];
+  const colors = ['#00d4ff', '#7b2fff', '#ff8c00', '#ff3b5c', '#00e676', '#7b2fff'];
   mkChart('chart-service', 'bar', {
     labels,
     datasets: [{
@@ -1093,7 +1093,7 @@ function drawDaily(data) {
 function drawSvcTrend(data) {
   const days     = [...new Set(data.map(d => d.day))];
   const services = [...new Set(data.map(d => d.service))];
-  const palette  = { SSH:'#00d4ff', HTTP:'#7b2fff', FTP:'#ff8c00', EXTERNAL:'#00e676' };
+  const palette  = { SSH:'#00d4ff', HTTP:'#7b2fff', FTP:'#ff8c00', TELNET:'#ff3b5c', SMTP:'#ff8c00', RDP:'#00e676', EXTERNAL:'#4a6080' };
   const datasets = services.map(svc => ({
     label: svc,
     data: days.map(day => (data.find(r => r.day===day && r.service===svc) || {}).count || 0),

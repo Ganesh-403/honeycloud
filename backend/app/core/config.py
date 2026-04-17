@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     FTP_HONEYPOT_PORT: int = 2121
     HTTP_HONEYPOT_PORT: int = 8080
     TELNET_HONEYPOT_PORT: int = 2323
+    SMTP_HONEYPOT_PORT: int = 2525
+    RDP_HONEYPOT_PORT: int = 3389
 
     # ── Reports ───────────────────────────────────────────────────────────────
     REPORTS_DIR: str = "reports"

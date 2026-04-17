@@ -8,10 +8,12 @@ import re
 from typing import Optional
 
 import numpy as np
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-SERVICE_PORT_MAP: dict[str, int] = {"SSH": 22, "FTP": 21, "HTTP": 80, "TELNET": 23, "EXTERNAL": 0}
+SERVICE_PORT_MAP: dict[str, int] = {"SSH": 22, "FTP": 21, "HTTP": 80, "TELNET": 23, "SMTP": 25, "RDP": 3389, "EXTERNAL": 0}
 
 DANGEROUS_PATTERNS: list[re.Pattern] = [
     re.compile(p, re.IGNORECASE) for p in [
@@ -46,10 +48,32 @@ FEATURE_NAMES = [
 
 NUM_FEATURES = len(FEATURE_NAMES)
 
+# Command tokenization constants
+MAX_COMMAND_SEQUENCE_LENGTH = 50
+MAX_VOCAB_SIZE = 1000
+
+_tokenizer: Optional[Tokenizer] = None
+
+def get_tokenizer() -> Tokenizer:
+    global _tokenizer
+    if _tokenizer is None:
+        _tokenizer = Tokenizer(num_words=MAX_VOCAB_SIZE, oov_token="<unk>")
+    return _tokenizer
+
+def fit_tokenizer(commands: list[str]):
+    tokenizer = get_tokenizer()
+    tokenizer.fit_on_texts(commands)
+
+
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def extract(event: dict) -> np.ndarray:
+def extract(event: dict) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extracts numerical features and tokenized command sequence from an event dict.
+    Returns a tuple: (numerical_features, command_sequence).
+    """
+
     """
     Extract a (1, NUM_FEATURES) float32 array from an event dict.
 
@@ -87,7 +111,14 @@ def extract(event: dict) -> np.ndarray:
         is_whitelisted,                      # is_whitelisted (from AbuseIPDB)
     ]
 
-    return np.array(features, dtype=np.float32).reshape(1, -1)
+    numerical_features = np.array(features, dtype=np.float32).reshape(1, -1)
+
+    # Tokenize and pad command
+    tokenizer = get_tokenizer()
+    command_sequence = tokenizer.texts_to_sequences([command])
+    padded_command_sequence = pad_sequences(command_sequence, maxlen=MAX_COMMAND_SEQUENCE_LENGTH, padding=\'post\', truncating=\'post\')
+
+    return numerical_features, padded_command_sequence
 
 
 def _extract_hour(timestamp) -> int:

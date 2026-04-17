@@ -15,28 +15,54 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from sklearn.ensemble import IsolationForest
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, concatenate
+from app.ml.features import NUM_FEATURES, MAX_COMMAND_SEQUENCE_LENGTH, MAX_VOCAB_SIZE, extract, fit_tokenizer, get_tokenizer
 
 from app.core.logging import get_logger
 from app.ml.features import NUM_FEATURES, extract
 
 logger = get_logger(__name__)
 
-MODEL_PATH = Path("data/ml_model.pkl")
+MODEL_PATH = Path("data/ml_model.h5") # Keras models are typically saved in HDF5 format
+TOKENIZER_PATH = Path("data/tokenizer.pkl")
 MIN_SAMPLES_TO_TRAIN = 50   # won't train on tiny datasets
 
 
 class MLThreatDetector:
+    def _build_lstm_model(self) -> Model:
+        # Numerical input branch
+        numerical_input = Input(shape=(NUM_FEATURES,), name='numerical_input')
+        numerical_branch = Dense(64, activation='relu')(numerical_input)
+
+        # Command sequence input branch
+        command_input = Input(shape=(MAX_COMMAND_SEQUENCE_LENGTH,), name='command_input')
+        embedding_layer = Embedding(MAX_VOCAB_SIZE, 128, input_length=MAX_COMMAND_SEQUENCE_LENGTH)(command_input)
+        lstm_branch = LSTM(64)(embedding_layer)
+
+        # Concatenate branches
+        merged = concatenate([numerical_branch, lstm_branch])
+
+        # Output layer
+        output = Dense(1, activation='sigmoid')(merged) # Binary classification
+
+        model = Model(inputs=[numerical_input, command_input], outputs=output)
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+
+
     """
     Wraps scikit-learn IsolationForest with a standardised
     label → (benign | anomaly | malicious | unknown) mapping.
     """
 
     def __init__(self, contamination: float = 0.1):
-        self._model: Optional[IsolationForest] = None
-        self._contamination = contamination
+        self._model: Optional[Model] = None
         self._trained = False
         self._load_if_exists()
+        if not self._trained:
+            self._model = self._build_lstm_model() # Initialize model even if not trained yet
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -53,17 +79,16 @@ class MLThreatDetector:
             return {"label": "unknown", "score": 0.0}
 
         try:
-            features = extract(event)
-            raw_pred  = self._model.predict(features)[0]           # 1 or -1
-            raw_score = float(self._model.decision_function(features)[0])
-            # decision_function: higher = more normal, lower = more anomalous
-            # We invert and normalise to [0, 1] threat-score
-            threat_score = round(max(0.0, min(1.0, 0.5 - raw_score)), 3)
-
-            if raw_pred == -1:
-                label = "malicious" if threat_score >= 0.6 else "anomaly"
+            numerical_features, command_sequence = extract(event)
+            prediction = self._model.predict([numerical_features, command_sequence], verbose=0)[0][0]
+            
+            # For binary classification (0=benign, 1=malicious)
+            if prediction >= 0.5:
+                label = "malicious"
+                threat_score = round(prediction, 3)
             else:
                 label = "benign"
+                threat_score = round(1 - prediction, 3) # Lower score for benign
 
             return {"label": label, "score": threat_score}
 
@@ -84,15 +109,34 @@ class MLThreatDetector:
             return False
 
         try:
-            X = np.vstack([extract(e) for e in events])
-            self._model = IsolationForest(
-                contamination=self._contamination,
-                n_estimators=200,
-                random_state=42,
-                n_jobs=-1,
-            )
-            self._model.fit(X)
+            # Prepare data for LSTM
+            all_numerical_features = []
+            all_commands = []
+            labels = [] # Assuming a binary label for simplicity: 0 for benign, 1 for malicious
+
+            for e in events:
+                num_feat, cmd_seq = extract(e)
+                all_numerical_features.append(num_feat.flatten())
+                all_commands.append(e.get("command") or "") # Store raw commands for tokenizer fitting
+                # For demonstration, let's assume 'severity' can be mapped to a binary label
+                # This needs to be refined based on actual data and desired ML task
+                labels.append(1 if e.get("severity") in ["CRITICAL", "HIGH"] else 0)
+            
+            fit_tokenizer(all_commands) # Fit tokenizer on all commands
+            tokenizer = get_tokenizer()
+            padded_command_sequences = pad_sequences(tokenizer.texts_to_sequences(all_commands), maxlen=MAX_COMMAND_SEQUENCE_LENGTH, padding='post', truncating='post')
+
+            X_numerical = np.array(all_numerical_features)
+            y_labels = np.array(labels)
+
+            # Rebuild model if not already built or if structure needs to change
+            if self._model is None:
+                self._model = self._build_lstm_model()
+
+            self._model.fit([X_numerical, padded_command_sequences], y_labels, epochs=10, batch_size=32, verbose=0)
             self._trained = True
+            self.save() # Auto-save after training
+            return True
             logger.info("ML model trained on %d samples.", len(events))
             return True
         except Exception as exc:
@@ -102,20 +146,25 @@ class MLThreatDetector:
     def save(self) -> None:
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
         with MODEL_PATH.open("wb") as fh:
-            pickle.dump({"model": self._model, "trained": self._trained}, fh)
+            self._model.save(MODEL_PATH)
+            with TOKENIZER_PATH.open("wb") as tk_fh:
+                pickle.dump(get_tokenizer(), tk_fh)
         logger.info("ML model saved to %s", MODEL_PATH)
 
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _load_if_exists(self) -> None:
-        if not MODEL_PATH.exists():
-            logger.info("No saved ML model found at %s – starting untrained.", MODEL_PATH)
+        if not MODEL_PATH.exists() or not TOKENIZER_PATH.exists():
+            logger.info("No saved ML model or tokenizer found – starting untrained.")
             return
         try:
-            with MODEL_PATH.open("rb") as fh:
-                state = pickle.load(fh)
-            self._model   = state["model"]
-            self._trained = state["trained"]
-            logger.info("ML model loaded from %s", MODEL_PATH)
+            self._model = tf.keras.models.load_model(MODEL_PATH)
+            with TOKENIZER_PATH.open("rb") as tk_fh:
+                global _tokenizer
+                _tokenizer = pickle.load(tk_fh)
+            self._trained = True
+            logger.info("ML model and tokenizer loaded from %s and %s", MODEL_PATH, TOKENIZER_PATH)
+        except Exception as exc:
+            logger.warning("Failed to load ML model or tokenizer: %s", exc)
         except Exception as exc:
             logger.warning("Failed to load ML model: %s", exc)
