@@ -31,11 +31,10 @@ def ml_status(
     """
     return {
         "is_trained":     detector.is_ready,
-        "model_type":     "IsolationForest",
-        "contamination":  detector._contamination,
+        "model_type":     "Keras LSTM (numerical + command sequence)",
         "feature_count":  len(FEATURE_NAMES),
         "features":       FEATURE_NAMES,
-        "model_path":     str(detector._model_path if hasattr(detector, "_model_path") else "data/ml_model.pkl"),
+        "model_path":     str(detector._model_path if hasattr(detector, "_model_path") else "data/ml_model.h5"),
         "status":         "ready" if detector.is_ready else "untrained – POST /ml/train to initialise",
     }
 
@@ -47,7 +46,7 @@ def train_model(
     detector: MLThreatDetector = Depends(get_ml_detector),
 ):
     """
-    Admin-only. Trains (or re-trains) the IsolationForest on all events
+    Admin-only. Trains (or re-trains) the LSTM classifier on all events
     currently stored in the database, then persists the model to disk.
 
     Minimum 50 events required. Returns training statistics.
@@ -84,9 +83,9 @@ def train_model(
     return {
         "status":         "success",
         "trained_on":     len(events),
-        "model_type":     "IsolationForest",
+        "model_type":     "Keras LSTM (numerical + command sequence)",
         "features_used":  FEATURE_NAMES,
-        "model_saved_to": "data/ml_model.pkl",
+        "model_saved_to": "data/ml_model.h5 (+ tokenizer.pkl)",
         "message":        "Model trained and persisted. All future ingest events will be classified.",
     }
 
@@ -109,13 +108,13 @@ def predict_event(
 
     prediction = detector.predict(payload.model_dump())
     from app.ml.features import extract
-    import numpy as np
-    features = extract(payload.model_dump()).flatten().tolist()
+    numerical_features, command_sequence = extract(payload.model_dump())
 
     return {
         "input":      payload.model_dump(),
         "prediction": prediction,
-        "features":   dict(zip(FEATURE_NAMES, features)),
+        "features":   dict(zip(FEATURE_NAMES, numerical_features.flatten().tolist())),
+        "command_sequence": command_sequence.flatten().tolist(),
         "interpretation": {
             "benign":    "Normal-looking traffic, low threat.",
             "anomaly":   "Unusual pattern – watch this IP.",

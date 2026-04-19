@@ -1,5 +1,5 @@
 """
-MLThreatDetector – Isolation Forest anomaly detection.
+MLThreatDetector – LSTM-based threat classification.
 
 Lifecycle:
   1. On startup, try to load a saved model from MODEL_PATH.
@@ -18,13 +18,23 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, concatenate
-from app.ml.features import NUM_FEATURES, MAX_COMMAND_SEQUENCE_LENGTH, MAX_VOCAB_SIZE, extract, fit_tokenizer, get_tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+from app.ml.features import (
+    NUM_FEATURES,
+    MAX_COMMAND_SEQUENCE_LENGTH,
+    MAX_VOCAB_SIZE,
+    extract,
+    fit_tokenizer,
+    get_tokenizer,
+    set_tokenizer,
+)
 
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-MODEL_PATH = Path("data/ml_model.h5") # Keras models are typically saved in HDF5 format
+MODEL_PATH = Path("data/ml_model.h5")  # Keras models are typically saved in HDF5 format
 TOKENIZER_PATH = Path("data/tokenizer.pkl")
 MIN_SAMPLES_TO_TRAIN = 50   # won't train on tiny datasets
 
@@ -51,13 +61,12 @@ class MLThreatDetector:
         return model
 
 
-    """
-    Wraps scikit-learn IsolationForest with a standardised
-    label → (benign | anomaly | malicious | unknown) mapping.
-    """
+    """Binary classifier for labels: benign | malicious | unknown."""
 
     def __init__(self, contamination: float = 0.1):
+        _ = contamination  # Backward-compat parameter retained intentionally.
         self._model: Optional[Model] = None
+        self._model_path = MODEL_PATH
         self._trained = False
         self._load_if_exists()
         if not self._trained:
@@ -114,7 +123,7 @@ class MLThreatDetector:
             labels = [] # Assuming a binary label for simplicity: 0 for benign, 1 for malicious
 
             for e in events:
-                num_feat, cmd_seq = extract(e)
+                num_feat, _ = extract(e)
                 all_numerical_features.append(num_feat.flatten())
                 all_commands.append(e.get("command") or "") # Store raw commands for tokenizer fitting
                 # For demonstration, let's assume 'severity' can be mapped to a binary label
@@ -157,8 +166,8 @@ class MLThreatDetector:
         try:
             self._model = tf.keras.models.load_model(MODEL_PATH)
             with TOKENIZER_PATH.open("rb") as tk_fh:
-                global _tokenizer
-                _tokenizer = pickle.load(tk_fh)
+                loaded_tokenizer = pickle.load(tk_fh)
+                set_tokenizer(loaded_tokenizer)
             self._trained = True
             logger.info("ML model and tokenizer loaded from %s and %s", MODEL_PATH, TOKENIZER_PATH)
         except Exception as exc:

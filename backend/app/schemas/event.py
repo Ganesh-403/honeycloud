@@ -29,7 +29,7 @@ class LocationInfo(BaseModel):
 # Ingest (public POST /api/v1/ingest)
 # ---------------------------------------------------------------------------
 
-VALID_SERVICES = {"SSH", "FTP", "HTTP", "TELNET", "EXTERNAL"}
+VALID_SERVICES = {"SSH", "FTP", "HTTP", "TELNET", "SMTP", "RDP", "EXTERNAL"}
 VALID_SEVERITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 VALID_AI_LABELS = {"benign", "anomaly", "malicious", "unknown"}
 VALID_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "UNKNOWN"}

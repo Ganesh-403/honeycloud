@@ -65,6 +65,11 @@ def fit_tokenizer(commands: list[str]):
     tokenizer.fit_on_texts(commands)
 
 
+def set_tokenizer(tokenizer: Tokenizer) -> None:
+    global _tokenizer
+    _tokenizer = tokenizer
+
+
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -72,12 +77,6 @@ def extract(event: dict) -> tuple[np.ndarray, np.ndarray]:
     """
     Extracts numerical features and tokenized command sequence from an event dict.
     Returns a tuple: (numerical_features, command_sequence).
-    """
-
-    """
-    Extract a (1, NUM_FEATURES) float32 array from an event dict.
-
-    All inputs are optional – missing/None values default to 0.
     """
     service    = (event.get("service") or "").upper()
     username   = event.get("username") or ""
@@ -116,7 +115,7 @@ def extract(event: dict) -> tuple[np.ndarray, np.ndarray]:
     # Tokenize and pad command
     tokenizer = get_tokenizer()
     command_sequence = tokenizer.texts_to_sequences([command])
-    padded_command_sequence = pad_sequences(command_sequence, maxlen=MAX_COMMAND_SEQUENCE_LENGTH, padding=\'post\', truncating=\'post\')
+    padded_command_sequence = pad_sequences(command_sequence, maxlen=MAX_COMMAND_SEQUENCE_LENGTH, padding='post', truncating='post')
 
     return numerical_features, padded_command_sequence
 
