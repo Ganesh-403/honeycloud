@@ -21,7 +21,6 @@ from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, concatenate
 from app.ml.features import NUM_FEATURES, MAX_COMMAND_SEQUENCE_LENGTH, MAX_VOCAB_SIZE, extract, fit_tokenizer, get_tokenizer
 
 from app.core.logging import get_logger
-from app.ml.features import NUM_FEATURES, extract
 
 logger = get_logger(__name__)
 
@@ -136,7 +135,6 @@ class MLThreatDetector:
             self._model.fit([X_numerical, padded_command_sequences], y_labels, epochs=10, batch_size=32, verbose=0)
             self._trained = True
             self.save() # Auto-save after training
-            return True
             logger.info("ML model trained on %d samples.", len(events))
             return True
         except Exception as exc:
@@ -145,10 +143,9 @@ class MLThreatDetector:
 
     def save(self) -> None:
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with MODEL_PATH.open("wb") as fh:
-            self._model.save(MODEL_PATH)
-            with TOKENIZER_PATH.open("wb") as tk_fh:
-                pickle.dump(get_tokenizer(), tk_fh)
+        self._model.save(MODEL_PATH)
+        with TOKENIZER_PATH.open("wb") as tk_fh:
+            pickle.dump(get_tokenizer(), tk_fh)
         logger.info("ML model saved to %s", MODEL_PATH)
 
     # ── Private ───────────────────────────────────────────────────────────────
@@ -166,5 +163,3 @@ class MLThreatDetector:
             logger.info("ML model and tokenizer loaded from %s and %s", MODEL_PATH, TOKENIZER_PATH)
         except Exception as exc:
             logger.warning("Failed to load ML model or tokenizer: %s", exc)
-        except Exception as exc:
-            logger.warning("Failed to load ML model: %s", exc)
