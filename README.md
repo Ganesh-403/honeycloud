@@ -43,7 +43,10 @@
 │  │SSH    │──────────────►  EventService                              │
 │  │FTP    │              ProfilerService                              │
 │  │HTTP   │              AlertService (Telegram)                      │
-│  └───────┘              ReportService (CSV/XLSX)                     │
+│  │TELNET │              ReportService (CSV/XLSX/TXT)                 │
+│  │SMTP   │                                                        │
+│  │RDP    │                                                        │
+│  └───────┘                                                        │
 │                                │                                     │
 │  Attackers                     │  ML Engine                          │
 │  (Internet) ──TCP──► Honeypots │  IsolationForest                    │
@@ -114,7 +117,9 @@ honeycloud/
 │       ├── schemas/                  ← Pydantic models
 │       ├── models/
 │       │   ├── attack_event.py       ← ORM: events table
-│       │   └── attacker_profile.py   ← ORM: per-IP profiles table
+│       │   ├── attacker_profile.py   ← ORM: per-IP profiles table
+│       │   ├── user.py               ← ORM: users table
+│       │   └── token_blacklist.py    ← ORM: revoked JWTs
 │       ├── db/session.py
 │       ├── repositories/
 │       │   ├── event_repository.py
@@ -130,7 +135,10 @@ honeycloud/
 │       │   ├── base.py               ← BaseHoneypot ABC
 │       │   ├── ssh_honeypot.py
 │       │   ├── ftp_honeypot.py
-│       │   └── http_honeypot.py
+│       │   ├── http_honeypot.py
+│       │   ├── telnet_honeypot.py
+│       │   ├── smtp_honeypot.py
+│       │   └── rdp_honeypot.py
 │       └── ml/
 │           ├── detector.py           ← IsolationForest wrapper
 │           └── features.py           ← 10-feature extraction pipeline
@@ -275,7 +283,7 @@ All settings from `.env` (never commit `.env` to git):
 | `DATABASE_URL` | `sqlite:///./data/honeycloud.db` | No | SQLAlchemy URL |
 | `ENVIRONMENT` | `production` | No | `development`/`staging`/`production` |
 | `DEBUG` | `false` | No | Shows /docs, verbose logs |
-| `ALLOWED_ORIGINS` | `["http://localhost:5173"]` | No | CORS list |
+| `ALLOWED_ORIGINS` | `["http://localhost:5173","http://localhost:80"]` | No | CORS list |
 | `RATE_LIMIT_PER_MINUTE` | `60` | No | Global API rate limit |
 | `TELEGRAM_ALERTS_ENABLED` | `false` | No | Telegram alert switch |
 | `TELEGRAM_BOT_TOKEN` | — | No | From @BotFather |
@@ -283,6 +291,9 @@ All settings from `.env` (never commit `.env` to git):
 | `SSH_HONEYPOT_PORT` | `2222` | No | |
 | `FTP_HONEYPOT_PORT` | `2121` | No | |
 | `HTTP_HONEYPOT_PORT` | `8080` | No | |
+| `TELNET_HONEYPOT_PORT` | `2323` | No | |
+| `SMTP_HONEYPOT_PORT` | `2525` | No | |
+| `RDP_HONEYPOT_PORT` | `3389` | No | |
 
 ---
 
@@ -316,16 +327,6 @@ All protected routes require `Authorization: Bearer <token>` unless otherwise no
 | GET | `/api/v1/analytics/service-trend` | Required | SSH/FTP/HTTP daily split |
 
 ### Attacker Profiles
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/analytics/summary` | Overview numbers |
-| GET | `/api/v1/analytics/timeline?mode=hourly\|daily` | Time-series |
-| GET | `/api/v1/analytics/geo` | Events by country |
-| GET | `/api/v1/analytics/heatmap` | 24×7 hour/day matrix |
-| GET | `/api/v1/analytics/credentials` | Top usernames, passwords, commands |
-| GET | `/api/v1/analytics/service-trend` | SSH/FTP/HTTP daily split |
-
-### Attacker Profiles
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/profiles/` | Required | List profiles (filterable) |
@@ -345,7 +346,7 @@ All protected routes require `Authorization: Bearer <token>` unless otherwise no
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/v1/stats/` | Required | Aggregate counts by severity/service/AI label |
-| POST | `/api/v1/reports/generate?fmt=csv\|xlsx\|txt&send_telegram=true|false` | Admin | Generate report and optionally send via Telegram |
+| POST | `/api/v1/reports/generate?fmt=csv\|xlsx\|txt&send_telegram=true\|false` | Admin | Generate report and optionally send via Telegram |
 | GET | `/api/v1/reports/download?file=name` | None | Secure file download (safe path validation) |
 | POST | `/api/v1/simulate/?count=N` | Required | Generate N demo events (authenticated user) |
 
@@ -481,7 +482,7 @@ All extend `BaseHoneypot`:
 
 ```python
 class BaseHoneypot(ABC):
-    protocol: str          # "SSH" | "FTP" | "HTTP"
+    protocol: str          # "SSH" | "FTP" | "HTTP" | "TELNET" | "SMTP" | "RDP"
 
     async def start(port: int): ...
     async def stop(): ...
@@ -497,6 +498,8 @@ class BaseHoneypot(ABC):
 2. Set `protocol = "MYPROTO"` and implement `start()` / `stop()`
 3. Use `_build_event()` + `_post_event()` – no other changes needed
 4. Register in `main.py` lifespan block
+
+Built-in honeypots: SSH, FTP, HTTP, TELNET, SMTP, and RDP.
 
 ---
 
