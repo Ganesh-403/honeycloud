@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HoneyCloud-X  ·  Attack Simulation & Demo Script
+HoneyCloud  ·  Attack Simulation & Demo Script
 =================================================
 Standalone script that exercises the full API pipeline end-to-end:
   1. Authenticate and obtain a JWT
@@ -8,17 +8,20 @@ Standalone script that exercises the full API pipeline end-to-end:
   3. Trigger the built-in simulation endpoint
   4. Train the ML model on the generated data
   5. Print a summary of captured events and attacker profiles
-  6. (Optional) Generate an XLSX report
+    6. (Optional) Generate a report (csv/xlsx/txt)
 
 Usage:
-    python simulate_attacks.py [--host HOST] [--port PORT] [--count N] [--report]
+    python simulate_attacks.py [--host HOST] [--port PORT] [--count N] [--report] [--report-format csv|xlsx|txt]
+
+Quick Examples:
+    python simulate_attacks.py --count 50
+    python simulate_attacks.py --report --report-format xlsx
+    python simulate_attacks.py --host 127.0.0.1 --port 8000 --user admin --password admin123
 """
 import argparse
-import json
 import random
 import sys
 import time
-from datetime import datetime, timezone
 
 try:
     import requests
@@ -97,16 +100,24 @@ class HoneyCloudClient:
         return r.json()
 
     def get_stats(self) -> dict:
-        return self.session.get(f"{self.base}/api/v1/stats/", timeout=10).json()
+        r = self.session.get(f"{self.base}/api/v1/stats/", timeout=10)
+        r.raise_for_status()
+        return r.json()
 
     def get_summary(self) -> dict:
-        return self.session.get(f"{self.base}/api/v1/analytics/summary", timeout=10).json()
+        r = self.session.get(f"{self.base}/api/v1/analytics/summary", timeout=10)
+        r.raise_for_status()
+        return r.json()
 
     def get_profiles(self, limit: int = 10) -> list:
-        return self.session.get(f"{self.base}/api/v1/profiles/?limit={limit}", timeout=10).json()
+        r = self.session.get(f"{self.base}/api/v1/profiles/?limit={limit}", timeout=10)
+        r.raise_for_status()
+        return r.json()
 
     def get_credentials(self) -> dict:
-        return self.session.get(f"{self.base}/api/v1/analytics/credentials?limit=5", timeout=10).json()
+        r = self.session.get(f"{self.base}/api/v1/analytics/credentials?limit=5", timeout=10)
+        r.raise_for_status()
+        return r.json()
 
     def train_ml(self) -> dict:
         r = self.session.post(f"{self.base}/api/v1/ml/train", timeout=60)
@@ -114,7 +125,9 @@ class HoneyCloudClient:
         return r.json()
 
     def ml_status(self) -> dict:
-        return self.session.get(f"{self.base}/api/v1/ml/status", timeout=10).json()
+        r = self.session.get(f"{self.base}/api/v1/ml/status", timeout=10)
+        r.raise_for_status()
+        return r.json()
 
     def generate_report(self, fmt: str = "xlsx") -> dict:
         r = self.session.post(f"{self.base}/api/v1/reports/generate?fmt={fmt}", timeout=120)
@@ -122,9 +135,9 @@ class HoneyCloudClient:
         return r.json()
 
 
-def run_simulation(client: HoneyCloudClient, count: int, report: bool):
+def run_simulation(client: HoneyCloudClient, count: int, report: bool, report_format: str):
     head("═══  Phase 1: Direct Attack Injection  ═══")
-    info(f"Injecting {len(ATTACKS)} distinct attack templates × {len(ATTACKER_IPS)} IPs…")
+    info(f"Injecting {len(ATTACKS)} attack templates using random source IPs from a pool of {len(ATTACKER_IPS)}…")
 
     injected = 0
     for attack in ATTACKS:
@@ -166,7 +179,7 @@ def run_simulation(client: HoneyCloudClient, count: int, report: bool):
     if ml_stat.get("is_trained"):
         info("Model already trained – skipping re-train")
     else:
-        info("Training IsolationForest on captured events…")
+        info("Training Keras LSTM model on captured events…")
         try:
             train_result = client.train_ml()
             ok(f"Trained on {train_result.get('trained_on', '?')} events")
@@ -219,10 +232,10 @@ def run_simulation(client: HoneyCloudClient, count: int, report: bool):
             print(f"    {p.get('password','?'):<20} {p.get('attempts',0):>4}x")
 
     if report:
-        head("═══  Phase 7: XLSX Report  ═══")
-        info("Generating XLSX report…")
+        head("═══  Phase 7: Report Generation  ═══")
+        info(f"Generating {report_format.upper()} report…")
         try:
-            rep = client.generate_report("xlsx")
+            rep = client.generate_report(report_format)
             ok(f"Report: {rep.get('filepath', '?')}  ({rep.get('events_count', 0)} events)")
             print(f"  Download: {rep.get('download_url', '')}")
         except Exception as e:
@@ -240,7 +253,9 @@ def main():
     parser.add_argument("--host", default="localhost", help="API hostname (default: localhost)")
     parser.add_argument("--port", default=8000, type=int, help="API port (default: 8000)")
     parser.add_argument("--count", default=30, type=int, help="Bulk simulation count (default: 30)")
-    parser.add_argument("--report", action="store_true", help="Generate XLSX report at end")
+    parser.add_argument("--report", action="store_true", help="Generate report at end")
+    parser.add_argument("--report-format", default="csv", choices=["csv", "xlsx", "txt"],
+                        help="Report format when --report is set (default: csv)")
     parser.add_argument("--user", default="admin", help="Login username")
     parser.add_argument("--password", default="admin123", help="Login password")
     args = parser.parse_args()
@@ -263,7 +278,7 @@ def main():
     if not client.login(args.user, args.password):
         sys.exit(1)
 
-    run_simulation(client, count=args.count, report=args.report)
+    run_simulation(client, count=args.count, report=args.report, report_format=args.report_format)
 
 
 if __name__ == "__main__":
