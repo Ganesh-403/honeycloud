@@ -5,7 +5,7 @@ Handles ingest validation and API response shapes.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, IPvAnyAddress
+from pydantic import BaseModel, ConfigDict, Field, field_validator, IPvAnyAddress
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +98,7 @@ class EventResponse(BaseModel):
     location: LocationInfo
     metadata: dict
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class IngestResponse(BaseModel):

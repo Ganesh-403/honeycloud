@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ProfileResponse(BaseModel):
@@ -29,8 +29,7 @@ class ProfileResponse(BaseModel):
     block_reason: Optional[str]
     blocked_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BlockRequest(BaseModel):
@@ -49,5 +48,4 @@ class ProfileSummary(BaseModel):
     scanner_detected: bool
     last_seen: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

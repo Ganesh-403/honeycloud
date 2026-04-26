@@ -47,7 +47,7 @@ class ForbiddenError(HoneyCloudError):
 
 
 class IngestError(HoneyCloudError):
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Failed to ingest event."
 
 
@@ -72,7 +72,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         logger.debug("Validation error on %s: %s", request.url, exc.errors())
         return _error_response(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"Invalid input: {exc.errors()}",
         )
 

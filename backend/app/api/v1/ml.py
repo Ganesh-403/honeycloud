@@ -11,7 +11,7 @@ from app.api.deps import get_event_service, get_ml_detector
 from app.core.logging import get_logger
 from app.core.security import get_current_user, require_admin
 from app.ml.detector import MLThreatDetector
-from app.ml.features import FEATURE_NAMES
+from app.ml.features import FEATURE_NAMES, extract_with_command
 from app.schemas.auth import UserInDB
 from app.schemas.event import EventIngest
 from app.services.event_service import EventService
@@ -54,7 +54,7 @@ def train_model(
     events = svc.get_all_events()
     if len(events) < 50:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Need at least 50 events to train; have {len(events)}. "
                    "Run /simulate first to generate data.",
         )
@@ -85,7 +85,7 @@ def train_model(
         "trained_on":     len(events),
         "model_type":     "Keras LSTM (numerical + command sequence)",
         "features_used":  FEATURE_NAMES,
-        "model_saved_to": "data/ml_model.h5 (+ tokenizer.pkl)",
+        "model_saved_to": "data/ml_model.keras (+ tokenizer.pkl)",
         "message":        "Model trained and persisted. All future ingest events will be classified.",
     }
 
@@ -107,8 +107,7 @@ def predict_event(
         )
 
     prediction = detector.predict(payload.model_dump())
-    from app.ml.features import extract
-    numerical_features, command_sequence = extract(payload.model_dump())
+    numerical_features, command_sequence = extract_with_command(payload.model_dump())
 
     return {
         "input":      payload.model_dump(),

@@ -25,6 +25,7 @@ from app.ml.features import (
     MAX_COMMAND_SEQUENCE_LENGTH,
     MAX_VOCAB_SIZE,
     extract,
+    extract_with_command,
     fit_tokenizer,
     get_tokenizer,
     set_tokenizer,
@@ -34,7 +35,7 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-MODEL_PATH = Path("data/ml_model.h5")  # Keras models are typically saved in HDF5 format
+MODEL_PATH = Path("data/ml_model.keras")
 TOKENIZER_PATH = Path("data/tokenizer.pkl")
 MIN_SAMPLES_TO_TRAIN = 50   # won't train on tiny datasets
 
@@ -47,7 +48,7 @@ class MLThreatDetector:
 
         # Command sequence input branch
         command_input = Input(shape=(MAX_COMMAND_SEQUENCE_LENGTH,), name='command_input')
-        embedding_layer = Embedding(MAX_VOCAB_SIZE, 128, input_length=MAX_COMMAND_SEQUENCE_LENGTH)(command_input)
+        embedding_layer = Embedding(MAX_VOCAB_SIZE, 128)(command_input)
         lstm_branch = LSTM(64)(embedding_layer)
 
         # Concatenate branches
@@ -66,7 +67,8 @@ class MLThreatDetector:
     def __init__(self, contamination: float = 0.1):
         _ = contamination  # Backward-compat parameter retained intentionally.
         self._model: Optional[Model] = None
-        self._model_path = MODEL_PATH
+        self._model_path = self._resolve_model_path(MODEL_PATH)
+        self._tokenizer_path = self._resolve_tokenizer_path(self._model_path)
         self._trained = False
         self._load_if_exists()
         if not self._trained:
@@ -87,7 +89,7 @@ class MLThreatDetector:
             return {"label": "unknown", "score": 0.0}
 
         try:
-            numerical_features, command_sequence = extract(event)
+            numerical_features, command_sequence = extract_with_command(event)
             prediction = self._model.predict([numerical_features, command_sequence], verbose=0)[0][0]
             
             # For binary classification (0=benign, 1=malicious)
@@ -123,8 +125,7 @@ class MLThreatDetector:
             labels = [] # Assuming a binary label for simplicity: 0 for benign, 1 for malicious
 
             for e in events:
-                num_feat, _ = extract(e)
-                all_numerical_features.append(num_feat.flatten())
+                all_numerical_features.append(extract(e).flatten())
                 all_commands.append(e.get("command") or "") # Store raw commands for tokenizer fitting
                 # For demonstration, let's assume 'severity' can be mapped to a binary label
                 # This needs to be refined based on actual data and desired ML task
@@ -151,24 +152,33 @@ class MLThreatDetector:
             return False
 
     def save(self) -> None:
-        MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        self._model.save(MODEL_PATH)
-        with TOKENIZER_PATH.open("wb") as tk_fh:
+        self._model_path.parent.mkdir(parents=True, exist_ok=True)
+        self._model.save(self._model_path)
+        with self._tokenizer_path.open("wb") as tk_fh:
             pickle.dump(get_tokenizer(), tk_fh)
-        logger.info("ML model saved to %s", MODEL_PATH)
+        logger.info("ML model saved to %s", self._model_path)
 
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _load_if_exists(self) -> None:
-        if not MODEL_PATH.exists() or not TOKENIZER_PATH.exists():
+        if not self._model_path.exists() or not self._tokenizer_path.exists():
             logger.info("No saved ML model or tokenizer found – starting untrained.")
             return
         try:
-            self._model = tf.keras.models.load_model(MODEL_PATH)
-            with TOKENIZER_PATH.open("rb") as tk_fh:
+            self._model = tf.keras.models.load_model(self._model_path)
+            with self._tokenizer_path.open("rb") as tk_fh:
                 loaded_tokenizer = pickle.load(tk_fh)
                 set_tokenizer(loaded_tokenizer)
             self._trained = True
-            logger.info("ML model and tokenizer loaded from %s and %s", MODEL_PATH, TOKENIZER_PATH)
+            logger.info("ML model and tokenizer loaded from %s and %s", self._model_path, self._tokenizer_path)
         except Exception as exc:
             logger.warning("Failed to load ML model or tokenizer: %s", exc)
+
+    def _resolve_model_path(self, path: Path) -> Path:
+        if path.suffix.lower() in {".keras", ".h5", ".hdf5"}:
+            return path
+        return path.with_suffix(".keras")
+
+    def _resolve_tokenizer_path(self, model_path: Path) -> Path:
+        # Keep tokenizer beside the model so test monkeypatching MODEL_PATH remains isolated.
+        return model_path.parent / TOKENIZER_PATH.name

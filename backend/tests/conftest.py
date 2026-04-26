@@ -86,8 +86,7 @@ def client():
     with patch("app.services.geo_service.lookup_location") as mock_geo, \
          patch("app.services.event_service.lookup_location") as mock_event_geo, \
          patch("app.services.geo_service.resolve_ip", side_effect=lambda ip: ip), \
-         patch("app.services.event_service.resolve_ip", side_effect=lambda ip: ip), \
-         patch("app.api.v1.events.resolve_ip", side_effect=lambda ip: ip):
+            patch("app.services.event_service.resolve_ip", side_effect=lambda ip: ip):
         from app.schemas.event import LocationInfo
         fake_location = LocationInfo(city="TestCity", country="Testland", country_code="TT", flag="🏳")
         mock_geo.return_value = fake_location

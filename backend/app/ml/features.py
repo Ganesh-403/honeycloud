@@ -70,14 +70,7 @@ def set_tokenizer(tokenizer: Tokenizer) -> None:
     _tokenizer = tokenizer
 
 
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def extract(event: dict) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Extracts numerical features and tokenized command sequence from an event dict.
-    Returns a tuple: (numerical_features, command_sequence).
-    """
+def _extract_numerical_features(event: dict) -> np.ndarray:
     service    = (event.get("service") or "").upper()
     username   = event.get("username") or ""
     password   = event.get("password") or ""
@@ -110,14 +103,41 @@ def extract(event: dict) -> tuple[np.ndarray, np.ndarray]:
         is_whitelisted,                      # is_whitelisted (from AbuseIPDB)
     ]
 
-    numerical_features = np.array(features, dtype=np.float32).reshape(1, -1)
+    return np.array(features, dtype=np.float32).reshape(1, -1)
+
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def extract_with_command(event: dict) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extract numerical features plus tokenized command sequence from an event dict.
+    Returns: (numerical_features, command_sequence).
+    """
+    command = event.get("command") or ""
+    numerical_features = _extract_numerical_features(event)
 
     # Tokenize and pad command
     tokenizer = get_tokenizer()
     command_sequence = tokenizer.texts_to_sequences([command])
+    # Newer Keras versions can emit None tokens for unknown words on unfitted tokenizers.
+    command_sequence = [
+        [int(tok) if tok is not None else 0 for tok in seq]
+        for seq in command_sequence
+    ]
     padded_command_sequence = pad_sequences(command_sequence, maxlen=MAX_COMMAND_SEQUENCE_LENGTH, padding='post', truncating='post')
 
     return numerical_features, padded_command_sequence
+
+
+def extract(event: dict) -> np.ndarray:
+    """
+    Backward-compatible numerical feature extraction.
+
+    Existing callers/tests expect this function to return only the
+    numerical feature matrix with shape (1, NUM_FEATURES).
+    """
+    return _extract_numerical_features(event)
 
 
 def _extract_hour(timestamp) -> int:
