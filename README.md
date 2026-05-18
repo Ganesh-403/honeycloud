@@ -196,7 +196,7 @@ python simulate_attacks.py --count 50 --report
 ### 4. Train the ML model
 
 ```bash
-make train-ml         # trains IsolationForest on stored events
+make train-ml         # trains Keras LSTM model on stored events
 ```
 
 ### Default credentials
@@ -256,7 +256,7 @@ curl -X GET http://localhost:8000/api/v1/stats/ \
 ```
 Phase 1 – Direct Attack Injection   (15 distinct attack templates × 5 IPs)
 Phase 2 – Bulk Simulation           (/simulate endpoint, N events)
-Phase 3 – ML Training               (IsolationForest on all stored events)
+Phase 3 – ML Training               (Keras LSTM on all stored events)
 Phase 4 – Results Summary           (totals, service breakdown)
 Phase 5 – Attacker Profiles         (top IPs, risk tiers, pattern flags)
 Phase 6 – Credential Intelligence   (top usernames & passwords)
@@ -280,7 +280,7 @@ All settings from `.env` (never commit `.env` to git):
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `SECRET_KEY` | — | ✅ | JWT signing key (≥32 chars) |
-| `DATABASE_URL` | `sqlite:///./data/honeycloud.db` | No | SQLAlchemy URL |
+| `DATABASE_URL` | `postgresql+psycopg2://honeycloud:change-me@postgres:5432/honeycloud` | No | SQLAlchemy URL |
 | `ENVIRONMENT` | `production` | No | `development`/`staging`/`production` |
 | `DEBUG` | `false` | No | Shows /docs, verbose logs |
 | `ALLOWED_ORIGINS` | `["http://localhost:5173","http://localhost:80"]` | No | CORS list |
@@ -417,9 +417,9 @@ has_command           – 1 if command/path is non-empty
 
 | Label | Condition |
 |-------|-----------|
-| `benign` | IsolationForest inlier |
-| `anomaly` | Outlier, threat score < 0.6 |
-| `malicious` | Outlier, threat score ≥ 0.6 |
+| `benign` | LSTM prediction < 0.5 |
+| `anomaly` | Reserved label (compatibility) |
+| `malicious` | LSTM prediction ≥ 0.5 |
 | `unknown` | Model not yet trained |
 
 ### Train / retrain cycle
@@ -431,7 +431,7 @@ curl -X POST http://localhost:8000/api/v1/ml/train \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Model persists to `data/ml_model.pkl` and is reloaded on restart.
+Model persists to `data/ml_model.keras` (+ `tokenizer.pkl`) and is reloaded on restart.
 
 ---
 
@@ -545,17 +545,15 @@ Test suite coverage:
 - [ ] `data/` and `reports/` volumes are backed up
 - [ ] Run `make train-ml` after accumulating real traffic
 
-### Switch to PostgreSQL
+### PostgreSQL Notes
+
+PostgreSQL is the default database in `.env.example` and `docker-compose.yml` now
+starts a `postgres` service automatically.
+
+If you need SQLite for a lightweight local run, set:
 
 ```bash
-# .env
-DATABASE_URL=postgresql+psycopg2://honeycloud:password@db:5432/honeycloud
-
-# requirements.txt – add:
-# psycopg2-binary==2.9.9
-
-# Analytics queries use strftime() – update to date_trunc() for Postgres:
-# strftime('%Y-%m-%dT%H:00:00', timestamp)  →  to_char(date_trunc('hour', timestamp), 'YYYY-MM-DD"T"HH24:00:00')
+DATABASE_URL=sqlite:///./data/honeycloud.db
 ```
 
 ---

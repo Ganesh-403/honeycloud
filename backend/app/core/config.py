@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # ── Database ──────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "sqlite:///./honeycloud.db"
+    DATABASE_URL: str = "postgresql+psycopg2://honeycloud:honeycloud@postgres:5432/honeycloud"
 
     # ── Rate limiting ────────────────────────────────────────────────────────
     RATE_LIMIT_PER_MINUTE: int = 60

@@ -29,6 +29,7 @@ WORKDIR /app
 # Copy pre-built wheels from builder and install (no gcc needed)
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* \
+    && pip install --no-cache-dir psycopg2-binary==2.9.10 \
     && rm -rf /wheels
 
 # Copy application source

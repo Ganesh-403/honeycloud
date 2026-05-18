@@ -7,6 +7,25 @@
 
 services:
 
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-honeycloud}
+      - POSTGRES_USER=${POSTGRES_USER:-honeycloud}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-honeycloud} -d ${POSTGRES_DB:-honeycloud}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── FastAPI Backend ─────────────────────────────────────────────────────────
   backend:
     build:
@@ -17,17 +36,21 @@ services:
     env_file: .env             # SECRET_KEY, DB URL, Telegram, etc.
     environment:
       - TZ=Asia/Kolkata
-      - WORKERS=2
+      - WORKERS=1
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-honeycloud}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-honeycloud}
     command: >
       python -m uvicorn app.main:app
       --host 0.0.0.0
       --port 8000
-      --workers 2
+      --workers ${WORKERS:-1}
     ports:
       - "8000:8000"
     volumes:
-      - db_data:/app/data       # SQLite DB file
+      - app_data:/app/data      # ML artifacts and local data
       - reports_data:/app/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - internal
     healthcheck:
@@ -76,7 +99,8 @@ services:
 
 # ── Volumes ──────────────────────────────────────────────────────────────────
 volumes:
-  db_data:
+  app_data:
+  pg_data:
   reports_data:
 
 # ── Networks ─────────────────────────────────────────────────────────────────

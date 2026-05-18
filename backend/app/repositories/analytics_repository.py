@@ -18,26 +18,45 @@ class AnalyticsRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    @property
+    def _is_postgres(self) -> bool:
+        bind = self.db.get_bind()
+        return bool(bind and bind.dialect.name.startswith("postgresql"))
+
     # ── Timeline ──────────────────────────────────────────────────────────────
 
     def hourly_timeline(self, hours: int = 24) -> list[dict]:
         """Events per hour for the last N hours."""
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
-
-        # SQLite-compatible hour truncation via strftime
-        rows = self.db.execute(
-            text("""
-                SELECT strftime('%Y-%m-%dT%H:00:00', timestamp) AS hour_bucket,
-                       COUNT(*) AS event_count,
-                       SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) AS critical_count,
-                       SUM(CASE WHEN severity = 'HIGH'     THEN 1 ELSE 0 END) AS high_count
-                FROM attack_events
-                WHERE timestamp >= :since
-                GROUP BY hour_bucket
-                ORDER BY hour_bucket ASC
-            """),
-            {"since": since.isoformat()},
-        ).fetchall()
+        if self._is_postgres:
+            rows = self.db.execute(
+                text("""
+                    SELECT to_char(date_trunc('hour', timestamp), 'YYYY-MM-DD"T"HH24:00:00') AS hour_bucket,
+                           COUNT(*) AS event_count,
+                           SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) AS critical_count,
+                           SUM(CASE WHEN severity = 'HIGH'     THEN 1 ELSE 0 END) AS high_count
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY 1
+                    ORDER BY 1 ASC
+                """),
+                {"since": since},
+            ).fetchall()
+        else:
+            # SQLite-compatible hour truncation via strftime
+            rows = self.db.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%dT%H:00:00', timestamp) AS hour_bucket,
+                           COUNT(*) AS event_count,
+                           SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) AS critical_count,
+                           SUM(CASE WHEN severity = 'HIGH'     THEN 1 ELSE 0 END) AS high_count
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY hour_bucket
+                    ORDER BY hour_bucket ASC
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
 
         return [
             {
@@ -52,19 +71,34 @@ class AnalyticsRepository:
     def daily_timeline(self, days: int = 30) -> list[dict]:
         """Events per day for the last N days."""
         since = datetime.now(timezone.utc) - timedelta(days=days)
-        rows = self.db.execute(
-            text("""
-                SELECT strftime('%Y-%m-%d', timestamp) AS day_bucket,
-                       COUNT(*) AS event_count,
-                       SUM(CASE WHEN severity IN ('CRITICAL','HIGH') THEN 1 ELSE 0 END) AS severe_count,
-                       COUNT(DISTINCT source_ip) AS unique_ips
-                FROM attack_events
-                WHERE timestamp >= :since
-                GROUP BY day_bucket
-                ORDER BY day_bucket ASC
-            """),
-            {"since": since.isoformat()},
-        ).fetchall()
+        if self._is_postgres:
+            rows = self.db.execute(
+                text("""
+                    SELECT to_char(date_trunc('day', timestamp), 'YYYY-MM-DD') AS day_bucket,
+                           COUNT(*) AS event_count,
+                           SUM(CASE WHEN severity IN ('CRITICAL','HIGH') THEN 1 ELSE 0 END) AS severe_count,
+                           COUNT(DISTINCT source_ip) AS unique_ips
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY 1
+                    ORDER BY 1 ASC
+                """),
+                {"since": since},
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', timestamp) AS day_bucket,
+                           COUNT(*) AS event_count,
+                           SUM(CASE WHEN severity IN ('CRITICAL','HIGH') THEN 1 ELSE 0 END) AS severe_count,
+                           COUNT(DISTINCT source_ip) AS unique_ips
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY day_bucket
+                    ORDER BY day_bucket ASC
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
 
         return [
             {
@@ -83,22 +117,40 @@ class AnalyticsRepository:
         Aggregate events by country using the stored geolocation JSON.
         Returns top 50 countries sorted by event count.
         """
-        rows = self.db.execute(
-            text("""
-                SELECT
-                    json_extract(geolocation, '$.country')      AS country,
-                    json_extract(geolocation, '$.country_code') AS country_code,
-                    json_extract(geolocation, '$.flag')         AS flag,
-                    COUNT(*) AS event_count,
-                    COUNT(DISTINCT source_ip) AS unique_ips
-                FROM attack_events
-                WHERE geolocation IS NOT NULL
-                  AND json_extract(geolocation, '$.country_code') != 'XX'
-                GROUP BY country_code
-                ORDER BY event_count DESC
-                LIMIT 50
-            """)
-        ).fetchall()
+        if self._is_postgres:
+            rows = self.db.execute(
+                text("""
+                    SELECT
+                        COALESCE(geolocation->>'country', 'Unknown') AS country,
+                        COALESCE(geolocation->>'country_code', 'XX') AS country_code,
+                        COALESCE(geolocation->>'flag', '🌍') AS flag,
+                        COUNT(*) AS event_count,
+                        COUNT(DISTINCT source_ip) AS unique_ips
+                    FROM attack_events
+                    WHERE geolocation IS NOT NULL
+                      AND COALESCE(geolocation->>'country_code', 'XX') != 'XX'
+                    GROUP BY 1, 2, 3
+                    ORDER BY event_count DESC
+                    LIMIT 50
+                """)
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                text("""
+                    SELECT
+                        json_extract(geolocation, '$.country')      AS country,
+                        json_extract(geolocation, '$.country_code') AS country_code,
+                        json_extract(geolocation, '$.flag')         AS flag,
+                        COUNT(*) AS event_count,
+                        COUNT(DISTINCT source_ip) AS unique_ips
+                    FROM attack_events
+                    WHERE geolocation IS NOT NULL
+                      AND json_extract(geolocation, '$.country_code') != 'XX'
+                    GROUP BY country_code
+                    ORDER BY event_count DESC
+                    LIMIT 50
+                """)
+            ).fetchall()
 
         return [
             {
@@ -118,17 +170,30 @@ class AnalyticsRepository:
         Returns a 24×7 matrix: events by hour-of-day × day-of-week.
         Useful for spotting 'when do attacks peak' patterns.
         """
-        rows = self.db.execute(
-            text("""
-                SELECT
-                    CAST(strftime('%H', timestamp) AS INTEGER) AS hour_of_day,
-                    CAST(strftime('%w', timestamp) AS INTEGER) AS day_of_week,
-                    COUNT(*) AS count
-                FROM attack_events
-                GROUP BY hour_of_day, day_of_week
-                ORDER BY day_of_week, hour_of_day
-            """)
-        ).fetchall()
+        if self._is_postgres:
+            rows = self.db.execute(
+                text("""
+                    SELECT
+                        EXTRACT(HOUR FROM timestamp)::int AS hour_of_day,
+                        EXTRACT(DOW FROM timestamp)::int AS day_of_week,
+                        COUNT(*) AS count
+                    FROM attack_events
+                    GROUP BY 1, 2
+                    ORDER BY 2, 1
+                """)
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                text("""
+                    SELECT
+                        CAST(strftime('%H', timestamp) AS INTEGER) AS hour_of_day,
+                        CAST(strftime('%w', timestamp) AS INTEGER) AS day_of_week,
+                        COUNT(*) AS count
+                    FROM attack_events
+                    GROUP BY hour_of_day, day_of_week
+                    ORDER BY day_of_week, hour_of_day
+                """)
+            ).fetchall()
 
         return [
             {"hour": row[0], "day": row[1], "count": row[2]}
@@ -188,18 +253,32 @@ class AnalyticsRepository:
     def service_trend(self, days: int = 7) -> list[dict]:
         """Daily event counts split by service for trend charts."""
         since = datetime.now(timezone.utc) - timedelta(days=days)
-        rows = self.db.execute(
-            text("""
-                SELECT strftime('%Y-%m-%d', timestamp) AS day,
-                       service,
-                       COUNT(*) AS count
-                FROM attack_events
-                WHERE timestamp >= :since
-                GROUP BY day, service
-                ORDER BY day, service
-            """),
-            {"since": since.isoformat()},
-        ).fetchall()
+        if self._is_postgres:
+            rows = self.db.execute(
+                text("""
+                    SELECT to_char(date_trunc('day', timestamp), 'YYYY-MM-DD') AS day,
+                           service,
+                           COUNT(*) AS count
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY 1, service
+                    ORDER BY 1, service
+                """),
+                {"since": since},
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', timestamp) AS day,
+                           service,
+                           COUNT(*) AS count
+                    FROM attack_events
+                    WHERE timestamp >= :since
+                    GROUP BY day, service
+                    ORDER BY day, service
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
         return [{"day": r[0], "service": r[1], "count": r[2]} for r in rows]
 
     # ── Summary stats ─────────────────────────────────────────────────────────
