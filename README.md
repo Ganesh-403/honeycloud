@@ -49,7 +49,7 @@
 │  └───────┘                                                        │
 │                                │                                     │
 │  Attackers                     │  ML Engine                          │
-│  (Internet) ──TCP──► Honeypots │  IsolationForest                    │
+│  (Internet) ──TCP──► Honeypots │  Keras LSTM                         │
 │                                │  10 semantic features               │
 │  Telegram ◄─── Alerts ─────────┘                                    │
 └──────────────────────────────────────────────────────────────────────┘
@@ -140,7 +140,7 @@ honeycloud/
 │       │   ├── smtp_honeypot.py
 │       │   └── rdp_honeypot.py
 │       └── ml/
-│           ├── detector.py           ← IsolationForest wrapper
+│           ├── detector.py           ← Keras LSTM wrapper
 │           └── features.py           ← 10-feature extraction pipeline
 │
 └── frontend/
