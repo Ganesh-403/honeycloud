@@ -34,7 +34,7 @@
 │                                                                      │
 │  Browser                FastAPI Backend            Database          │
 │  ┌────────┐  HTTPS/WS  ┌──────────────────────┐  ┌──────────────┐  │
-│  │Dashboard│◄──────────►│  API Layer (v1)       │  │SQLite /      │  │
+│  │Dashboard│◄──────────►│  API Layer           │  │SQLite /      │  │
 │  │(nginx) │            │  auth · events        │  │Postgres      │  │
 │  └────────┘            │  analytics · profiles │◄─│              │  │
 │                         │  ml · reports         │  └──────────────┘  │
@@ -74,8 +74,6 @@ TCP → Honeypot → POST /ingest (201 ~50ms)
 
 ```
 honeycloud/
-├── Makefile                          ← developer command centre
-├── simulate_attacks.py               ← demo / smoke-test script
 ├── docker-compose.yml                ← production stack
 ├── docker-compose.dev.yml            ← dev hot-reload overrides
 ├── .env.example                      ← copy → .env
@@ -156,7 +154,7 @@ honeycloud/
 ## Quick Start
 
 ### Prerequisites
-- Docker ≥ 24 + Docker Compose v2 (recommended)
+- Docker + Docker Compose (recommended)
 - OR Python 3.11+ for local development
 
 ### 1. Clone and configure
@@ -165,7 +163,7 @@ honeycloud/
 git clone https://github.com/your-org/honeycloud.git
 cd honeycloud
 cp .env.example .env
-make gen-key          # updates .env SECRET_KEY with a strong secret
+# Generate a secret key with python -c "import secrets; print(secrets.token_hex(32))" and add to .env
 # Review .env to set DATABASE_URL, TELEGRAM_*, rate limits, and honeypot ports.
 ```
 
@@ -174,9 +172,9 @@ make gen-key          # updates .env SECRET_KEY with a strong secret
 ### 2. Start the stack
 
 ```bash
-make prod             # production  (background)
+docker compose up --build -d          # production  (background)
 # OR
-make dev              # development (hot-reload, foreground)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build  # development (hot-reload, foreground)
 ```
 
 | URL | Description |
@@ -188,15 +186,16 @@ make dev              # development (hot-reload, foreground)
 ### 3. Generate demo data
 
 ```bash
-make seed             # 30 simulated attacks via the API
-# OR
-python simulate_attacks.py --count 50 --report
+# Get a token first
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login -d "username=admin&password=admin123" | jq -r .access_token)
+# Generate 50 demo events
+curl -X POST "http://localhost:8000/api/v1/simulate?count=50" -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 4. Train the ML model
 
 ```bash
-make train-ml         # trains Keras LSTM model on stored events
+curl -X POST http://localhost:8000/api/v1/ml/train -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Default credentials
@@ -249,29 +248,6 @@ curl -X GET http://localhost:8000/api/v1/stats/ \
 
 ---
 
-## Demo Script
-
-`simulate_attacks.py` is a 7-phase end-to-end demo:
-
-```
-Phase 1 – Direct Attack Injection   (15 distinct attack templates × 5 IPs)
-Phase 2 – Bulk Simulation           (/simulate endpoint, N events)
-Phase 3 – ML Training               (Keras LSTM on all stored events)
-Phase 4 – Results Summary           (totals, service breakdown)
-Phase 5 – Attacker Profiles         (top IPs, risk tiers, pattern flags)
-Phase 6 – Credential Intelligence   (top usernames & passwords)
-Phase 7 – XLSX Report (optional)    (--report flag)
-```
-
-```bash
-# Full demo with report
-python simulate_attacks.py --count 100 --report
-
-# Custom host/port
-python simulate_attacks.py --host 192.168.1.10 --port 8000
-```
-
----
 
 ## Configuration
 
@@ -424,9 +400,7 @@ has_command           – 1 if command/path is non-empty
 
 ### Train / retrain cycle
 ```bash
-# After accumulating ≥ 50 events:
-make train-ml
-# OR via API:
+# After accumulating ≥ 50 events via API:
 curl -X POST http://localhost:8000/api/v1/ml/train \
   -H "Authorization: Bearer $TOKEN"
 ```
@@ -510,13 +484,13 @@ Built-in honeypots: SSH, FTP, HTTP, TELNET, SMTP, and RDP.
 cd backend && pip install pytest httpx pytest-asyncio
 
 # Run all tests
-make test
+cd backend && pytest
 
 # With coverage
-make test-cov
+cd backend && pytest --cov=app --cov-report=term-missing
 
 # Quick (skips ML tests)
-make test-fast
+cd backend && pytest -k "not test_ml"
 ```
 
 Test suite coverage:
@@ -536,14 +510,14 @@ Test suite coverage:
 
 ### Production checklist
 
-- [ ] `SECRET_KEY` is a random 64-char hex (`make gen-key`)
+- [ ] `SECRET_KEY` is a random 64-char hex
 - [ ] `ENVIRONMENT=production`, `DEBUG=false`
 - [ ] `ALLOWED_ORIGINS` locked to your actual domain
 - [ ] Telegram token configured (or `TELEGRAM_ALERTS_ENABLED=false`)
 - [ ] Honeypot ports (2222, 2121, 8080) exposed; API port (8000) internal only
 - [ ] Nginx terminates TLS; backend is behind reverse proxy
 - [ ] `data/` and `reports/` volumes are backed up
-- [ ] Run `make train-ml` after accumulating real traffic
+- [ ] Run ML training (via /api/v1/ml/train) after accumulating real traffic
 
 ### PostgreSQL Notes
 
@@ -567,7 +541,7 @@ DATABASE_URL=sqlite:///./data/honeycloud.db
 | JWT | HS256, configurable expiry, validated on every request |
 | Rate limiting | `slowapi` – 10/min on login, 60/min global |
 | CORS | Explicit `ALLOWED_ORIGINS` (no wildcard) |
-| Input validation | Pydantic v2 field validators on all routes |
+| Input validation | Pydantic field validators on all routes |
 | Path traversal | `ReportService.safe_path()` uses `Path.resolve()` parent check |
 | WebSocket auth | JWT validated before connection upgrade; `4001 Unauthorized` |
 | Container | `USER appuser` (UID 1001) in Dockerfile |

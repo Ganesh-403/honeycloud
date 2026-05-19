@@ -33,14 +33,14 @@ class EventService:
         self._alert = alert_svc
         self._ml = detector
 
-    def ingest(
+    async def ingest(
         self,
         payload: EventIngest,
         source_ip: str,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> AttackEvent:
         resolved_ip = resolve_ip(source_ip)
-        location = lookup_location(resolved_ip)
+        location = await lookup_location(resolved_ip)
 
         event_dict = payload.model_dump()
         prediction = self._ml.predict(event_dict)
@@ -130,7 +130,7 @@ class EventService:
     def get_all_events(self) -> list[AttackEvent]:
         return self._repo.get_all()
 
-    def simulate(self, source_ip: str, count: int = 30) -> dict:
+    async def simulate(self, source_ip: str, count: int = 30) -> dict:
         import random
         TEMPLATES = [
             ("root",      "CRITICAL", "malicious", 0.95, "rm -rf /",       "SSH"),
@@ -153,7 +153,7 @@ class EventService:
                 command=cmd, severity=severity,
                 ai_label=label, threat_score=score,
             )
-            event = self.ingest(p, source_ip)
+            event = await self.ingest(p, source_ip)
             created.append(event)
 
         breakdown = {s: sum(1 for e in created if e.severity == s)

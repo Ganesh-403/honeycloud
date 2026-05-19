@@ -43,7 +43,7 @@ def _get_real_ip(request: Request) -> str:
     summary="Ingest honeypot event (public)",
 )
 @limiter.limit("100/minute")
-def ingest_event(
+async def ingest_event(
     payload: EventIngest,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -55,7 +55,7 @@ def ingest_event(
     execute as background tasks (non-blocking).
     """
     source_ip = payload.source_ip if payload.source_ip and payload.source_ip.strip() else _get_real_ip(request)
-    event = svc.ingest(payload, source_ip, background_tasks=background_tasks)
+    event = await svc.ingest(payload, source_ip, background_tasks=background_tasks)
     return IngestResponse(status="received", id=event.id)
 
 

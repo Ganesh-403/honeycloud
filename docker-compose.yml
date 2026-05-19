@@ -44,7 +44,13 @@ services:
       --port 8000
       --workers ${WORKERS:-1}
     ports:
-      - "8000:8000"
+      - "8000:8000"    # API
+      - "8080:8080"    # HTTP Honeypot
+      - "2121:2121"    # FTP Honeypot
+      - "2222:2222"    # SSH Honeypot
+      - "2323:2323"    # TELNET Honeypot
+      - "2525:2525"    # SMTP Honeypot
+      - "3389:3389"    # RDP Honeypot
     volumes:
       - app_data:/app/data      # ML artifacts and local data
       - reports_data:/app/reports
@@ -76,26 +82,7 @@ services:
     networks:
       - internal
 
-  # ── SSH Honeypot (separate exposed port) ────────────────────────────────────
-  # Uncomment once SSH host key is generated:
-  # ssh-honeypot:
-  #   image: honeycloud-backend:latest
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   ports:
-  #     - "2222:2222"
-  #   command: python -m app.honeypots.ssh_honeypot
-  #   networks: [internal]
 
-  # ── FTP Honeypot ─────────────────────────────────────────────────────────────
-  # ftp-honeypot:
-  #   image: honeycloud-backend:latest
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   ports:
-  #     - "2121:2121"
-  #   command: python -m app.honeypots.ftp_honeypot
-  #   networks: [internal]
 
 # ── Volumes ──────────────────────────────────────────────────────────────────
 volumes:

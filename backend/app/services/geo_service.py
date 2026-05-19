@@ -18,13 +18,14 @@ def _is_private(ip: str) -> bool:
     return any(ip.startswith(p) for p in _PRIVATE_PREFIXES)
 
 
-def _get_public_ip() -> str:
+async def _get_public_ip() -> str:
     """Fallback: resolve the machine's public IP."""
     try:
-        r = httpx.get("https://api.ipify.org?format=json",
-                         timeout=settings.GEOIP_TIMEOUT_SECONDS)
-        r.raise_for_status()
-        return r.json()["ip"]
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://api.ipify.org?format=json",
+                             timeout=settings.GEOIP_TIMEOUT_SECONDS)
+            r.raise_for_status()
+            return r.json()["ip"]
     except Exception as exc:
         logger.warning("Could not resolve public IP: %s", exc)
         return "0.0.0.0"
@@ -46,7 +47,7 @@ def get_country_flag(country_code: str) -> str:
         return "🌍"
 
 
-def _check_abuse_ipdb(ip: str) -> dict:
+async def _check_abuse_ipdb(ip: str) -> dict:
     """Query AbuseIPDB for IP reputation."""
     if not settings.ABUSEIPDB_API_KEY:
         return {}
@@ -61,15 +62,16 @@ def _check_abuse_ipdb(ip: str) -> dict:
             "Accept": "application/json",
             "Key": settings.ABUSEIPDB_API_KEY
         }
-        r = httpx.get(url, params=params, headers=headers, timeout=settings.GEOIP_TIMEOUT_SECONDS)
-        r.raise_for_status()
-        return r.json().get("data", {})
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, params=params, headers=headers, timeout=settings.GEOIP_TIMEOUT_SECONDS)
+            r.raise_for_status()
+            return r.json().get("data", {})
     except Exception as exc:
         logger.warning("AbuseIPDB lookup failed for %s: %s", ip, exc)
         return {}
 
 
-def lookup_location(ip: str) -> LocationInfo:
+async def lookup_location(ip: str) -> LocationInfo:
     """
     Resolve geographic info and threat intelligence for the given IP.
     Returns a LocationInfo with defaults on any failure.
@@ -86,16 +88,17 @@ def lookup_location(ip: str) -> LocationInfo:
         )
 
     # 2. Enrich with Threat Intelligence (AbuseIPDB)
-    abuse_data = _check_abuse_ipdb(ip)
+    abuse_data = await _check_abuse_ipdb(ip)
 
     # 3. Resolve geographic info (ipapi.co)
     try:
-        r = httpx.get(
-            f"https://ipapi.co/{ip}/json/",
-            timeout=settings.GEOIP_TIMEOUT_SECONDS,
-        )
-        r.raise_for_status()
-        geo_data = r.json()
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://ipapi.co/{ip}/json/",
+                timeout=settings.GEOIP_TIMEOUT_SECONDS,
+            )
+            r.raise_for_status()
+            geo_data = r.json()
         
         if "error" in geo_data or not geo_data.get("city"):
             # If geo lookup fails, try to use data from AbuseIPDB if available

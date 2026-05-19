@@ -13,6 +13,7 @@ import abc
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+import asyncio
 import httpx
 
 from app.core.config import get_settings
@@ -65,19 +66,29 @@ class BaseHoneypot(abc.ABC):
 
     def _post_event(self, event: dict) -> None:
         """
-        Forward event to the FastAPI ingest endpoint over localhost.
+        Forward event to the FastAPI ingest endpoint over localhost asynchronously.
         Fire-and-forget; logs errors but never raises.
         """
         url = f"http://127.0.0.1:8000{self._settings.API_V1_PREFIX}/ingest"
+
+        async def _do_post():
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(url, json=event, timeout=2.0)
+                    if not resp.is_success:
+                        logger.warning(
+                            "[%s] Ingest response %d: %s",
+                            self.protocol, resp.status_code, resp.text[:200],
+                        )
+            except Exception as exc:
+                logger.error("[%s] Failed to post event: %s", self.protocol, exc)
+
         try:
-            resp = httpx.post(url, json=event, timeout=2)
-            if not resp.is_success:
-                logger.warning(
-                    "[%s] Ingest response %d: %s",
-                    self.protocol, resp.status_code, resp.text[:200],
-                )
-        except Exception as exc:
-            logger.error("[%s] Failed to post event: %s", self.protocol, exc)
+            loop = asyncio.get_running_loop()
+            loop.create_task(_do_post())
+        except RuntimeError:
+            # Fallback if no running loop (should not happen in honeypot context)
+            asyncio.run(_do_post())
 
     # ── Severity classification ────────────────────────────────────────────────
 

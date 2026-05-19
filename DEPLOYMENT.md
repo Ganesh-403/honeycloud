@@ -58,3 +58,8 @@ docker compose up --build -d
 * **Dashboard**: `http://localhost:80`
 * **API Docs**: `http://localhost:8000/docs`
 * **Fake Login Honeypot**: `http://localhost:8080`
+* **SSH Honeypot**: `localhost:2222`
+* **FTP Honeypot**: `localhost:2121`
+* **TELNET Honeypot**: `localhost:2323`
+* **SMTP Honeypot**: `localhost:2525`
+* **RDP Honeypot**: `localhost:3389`

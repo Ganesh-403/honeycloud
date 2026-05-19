@@ -31,21 +31,49 @@ FAKE_LOGIN_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enterprise Secure Access Portal</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7f6; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        .login-container { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        .logo { margin-bottom: 20px; font-size: 24px; font-weight: 600; color: #2c3e50; }
-        .logo span { color: #3498db; }
-        .subtitle { color: #7f8c8d; font-size: 14px; margin-bottom: 30px; }
+        :root {
+            --primary: #4F46E5;
+            --secondary: #ec4899;
+            --bg: #0f172a;
+            --surface: rgba(30, 41, 59, 0.4);
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --danger: #ef4444;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; position: relative; }
+        body::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 20% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
+            animation: rotateGlow 25s linear infinite; z-index: -1;
+        }
+        @keyframes rotateGlow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .login-container {
+            background: var(--surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 20px; padding: 40px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            width: 100%; max-width: 400px; text-align: center; position: relative; overflow: hidden;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px);
+        }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+        .login-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        .logo { font-family: 'Outfit', sans-serif; margin-bottom: 5px; font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo span { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 30px; text-transform: uppercase; letter-spacing: 0.15em; }
         .input-group { margin-bottom: 20px; text-align: left; }
-        .input-group label { display: block; font-size: 12px; color: #34495e; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
-        .input-group input { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 4px; box-sizing: border-box; font-size: 14px; transition: border-color 0.3s; }
-        .input-group input:focus { border-color: #3498db; outline: none; }
-        .btn { background: #3498db; color: #ffffff; padding: 12px; width: 100%; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
-        .btn:hover { background: #2980b9; }
-        .footer { margin-top: 30px; font-size: 12px; color: #95a5a6; }
-        .error { color: #e74c3c; font-size: 13px; margin-bottom: 15px; display: none; }
+        .input-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .input-group input { width: 100%; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 14px; font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: all 0.3s ease; box-sizing: border-box; }
+        .input-group input:focus { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+        .btn { background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: #ffffff; padding: 14px; width: 100%; border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(79, 70, 229, 0.5); }
+        .footer { margin-top: 30px; font-size: 11px; color: var(--muted); opacity: 0.7; }
+        .error { color: var(--danger); font-size: 13px; margin-bottom: 15px; display: none; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -55,14 +83,14 @@ FAKE_LOGIN_HTML = """
         <div class="error" id="error-msg">Invalid credentials. This attempt has been logged.</div>
         <form method="POST" action="/login">
             <div class="input-group">
-                <label for="username">Username / Admin ID</label>
-                <input type="text" id="username" name="username" required autocomplete="off">
+                <label for="username">Admin ID / Username</label>
+                <input type="text" id="username" name="username" required autocomplete="off" spellcheck="false">
             </div>
             <div class="input-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit" class="btn">Secure Login</button>
+            <button type="submit" class="btn">Authenticate</button>
         </form>
         <div class="footer">
             &copy; 2026 GlobalSecure Infrastructure. All rights reserved.<br>
@@ -70,10 +98,15 @@ FAKE_LOGIN_HTML = """
         </div>
     </div>
     <script>
-        // Check for error in URL parameter to show fake error
         if(window.location.search.includes('error=1')) {
             document.getElementById('error-msg').style.display = 'block';
+            const card = document.querySelector('.login-container');
+            card.style.animation = 'none'; card.offsetHeight;
+            card.style.animation = 'shake .35s ease-out';
         }
+        const style = document.createElement('style');
+        style.textContent = `@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }`;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
