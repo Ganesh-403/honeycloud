@@ -13,7 +13,7 @@ import abc
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-import requests
+import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -70,8 +70,8 @@ class BaseHoneypot(abc.ABC):
         """
         url = f"http://127.0.0.1:8000{self._settings.API_V1_PREFIX}/ingest"
         try:
-            resp = requests.post(url, json=event, timeout=2)
-            if not resp.ok:
+            resp = httpx.post(url, json=event, timeout=2)
+            if not resp.is_success:
                 logger.warning(
                     "[%s] Ingest response %d: %s",
                     self.protocol, resp.status_code, resp.text[:200],

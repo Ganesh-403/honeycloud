@@ -5,27 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HoneyCloud · Threat Intelligence Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     /* ════════════════════════════════════
        DESIGN TOKENS
     ════════════════════════════════════ */
     :root {
-      --bg:        #050810;
-      --surface:   #0b1120;
-      --surface2:  #0f1a2e;
-      --border:    #1a2a45;
-      --border2:   #243a5e;
-      --accent:    #00d4ff;
-      --accent2:   #7b2fff;
-      --danger:    #ff3b5c;
-      --warn:      #ff8c00;
-      --ok:        #00e676;
-      --text:      #c9d8f0;
-      --muted:     #4a6080;
-      --sidebar-w: 220px;
-      --topbar-h:  52px;
+      --bg:        #0f172a;
+      --surface:   rgba(30, 41, 59, 0.5);
+      --surface2:  rgba(30, 41, 59, 0.7);
+      --border:    rgba(255, 255, 255, 0.1);
+      --border2:   rgba(255, 255, 255, 0.15);
+      --accent:    #8b5cf6;
+      --accent2:   #ec4899;
+      --danger:    #ef4444;
+      --warn:      #f59e0b;
+      --ok:        #10b981;
+      --text:      #f8fafc;
+      --muted:     #94a3b8;
+      --sidebar-w: 240px;
+      --topbar-h:  64px;
     }
 
     /* ════════════════════════════════════
@@ -36,7 +36,7 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Rajdhani', sans-serif;
+      font-family: 'Inter', sans-serif;
       min-height: 100vh;
       overflow-x: hidden;
     }
@@ -47,11 +47,15 @@
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-    /* ── Scanline overlay ── */
+    /* ── Animated Background ── */
     body::before {
-      content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.06) 2px, rgba(0,0,0,.06) 4px);
+      content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; z-index: -1; pointer-events: none;
+      background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.12) 0%, transparent 40%),
+                  radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 40%),
+                  radial-gradient(circle at 20% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 40%);
+      animation: rotateGlow 25s linear infinite;
     }
+    @keyframes rotateGlow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     /* ════════════════════════════════════
        TOP BAR  (mobile + desktop)
@@ -60,6 +64,7 @@
       position: fixed; top: 0; left: 0; right: 0;
       height: var(--topbar-h);
       background: var(--surface);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center;
       padding: 0 1rem; gap: .8rem;
@@ -129,6 +134,7 @@
       width: var(--sidebar-w);
       flex-shrink: 0;
       background: var(--surface);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column;
       position: sticky;
@@ -237,7 +243,9 @@
     }
     .stat-card {
       background: var(--surface);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 1.2rem 1.1rem;
       position: relative; overflow: hidden;
       transition: border-color .2s, transform .15s;
@@ -286,7 +294,9 @@
 
     .chart-card {
       background: var(--surface);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 1.2rem;
       position: relative; overflow: hidden;
     }
@@ -316,6 +326,7 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap; position: sticky; top: 0;
       background: var(--surface); z-index: 1;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     }
     .feed-table td {
       padding: .52rem .8rem;
@@ -360,6 +371,7 @@
     /* ── Profiles ── */
     .profile-detail {
       background: var(--surface2); border: 1px solid var(--border2);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       padding: 1.2rem; margin-top: 1rem; display: none;
     }
     .profile-detail.open { display: block; animation: pageIn .2s ease-out; }
@@ -443,6 +455,7 @@
 
     .select {
       background: var(--surface2); border: 1px solid var(--border);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       color: var(--text); padding: .38rem .6rem;
       font-family: 'Rajdhani', sans-serif;
       font-size: .82rem; font-weight: 600; cursor: pointer;

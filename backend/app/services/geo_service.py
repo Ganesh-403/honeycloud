@@ -2,7 +2,7 @@
 Geo-IP enrichment service.
 Converts an IP address to a LocationInfo dict using ipapi.co.
 """
-import requests
+import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -21,7 +21,7 @@ def _is_private(ip: str) -> bool:
 def _get_public_ip() -> str:
     """Fallback: resolve the machine's public IP."""
     try:
-        r = requests.get("https://api.ipify.org?format=json",
+        r = httpx.get("https://api.ipify.org?format=json",
                          timeout=settings.GEOIP_TIMEOUT_SECONDS)
         r.raise_for_status()
         return r.json()["ip"]
@@ -61,7 +61,7 @@ def _check_abuse_ipdb(ip: str) -> dict:
             "Accept": "application/json",
             "Key": settings.ABUSEIPDB_API_KEY
         }
-        r = requests.get(url, params=params, headers=headers, timeout=settings.GEOIP_TIMEOUT_SECONDS)
+        r = httpx.get(url, params=params, headers=headers, timeout=settings.GEOIP_TIMEOUT_SECONDS)
         r.raise_for_status()
         return r.json().get("data", {})
     except Exception as exc:
@@ -90,7 +90,7 @@ def lookup_location(ip: str) -> LocationInfo:
 
     # 3. Resolve geographic info (ipapi.co)
     try:
-        r = requests.get(
+        r = httpx.get(
             f"https://ipapi.co/{ip}/json/",
             timeout=settings.GEOIP_TIMEOUT_SECONDS,
         )

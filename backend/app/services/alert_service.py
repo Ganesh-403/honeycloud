@@ -2,7 +2,7 @@
 AlertService – dispatches Telegram notifications for high-severity events.
 Completely driven by Settings; no tokens in source code.
 """
-import requests
+import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -43,13 +43,13 @@ class AlertService:
         url = f"https://api.telegram.org/bot{self._settings.TELEGRAM_BOT_TOKEN}/sendDocument"
         try:
             with open(file_path, "rb") as fh:
-                resp = requests.post(
+                resp = httpx.post(
                     url,
                     data={"chat_id": self._settings.TELEGRAM_CHAT_ID, "caption": caption},
                     files={"document": fh},
                     timeout=10,
                 )
-            if resp.ok:
+            if resp.is_success:
                 logger.info("File sent to Telegram: %s", file_path)
                 return True
             logger.warning("Telegram file send failed: %s", resp.text)
@@ -62,7 +62,7 @@ class AlertService:
     def _send_message(self, text: str) -> None:
         url = f"https://api.telegram.org/bot{self._settings.TELEGRAM_BOT_TOKEN}/sendMessage"
         try:
-            resp = requests.post(
+            resp = httpx.post(
                 url,
                 json={
                     "chat_id": self._settings.TELEGRAM_CHAT_ID,
@@ -71,7 +71,7 @@ class AlertService:
                 },
                 timeout=5,
             )
-            if resp.ok:
+            if resp.is_success:
                 logger.info("Telegram alert sent for severity=%s", "HIGH+")
             else:
                 logger.warning("Telegram alert failed: %s", resp.text)

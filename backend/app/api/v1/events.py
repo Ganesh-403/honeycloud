@@ -51,7 +51,7 @@ def ingest_event(
 ):
     """
     Public endpoint consumed by honeypot agents.
-    Returns 201 immediately; geo-IP lookup, profiling, and alerts
+    Returns 201 immediately; profiling and alerts
     execute as background tasks (non-blocking).
     """
     source_ip = payload.source_ip if payload.source_ip and payload.source_ip.strip() else _get_real_ip(request)
