@@ -14,9 +14,11 @@ from app.repositories.event_repository import EventRepository
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.token_blacklist_repository import TokenBlacklistRepository
 from app.repositories.user_repository import UserRepository
+from app.repositories.audit_repository import AuditRepository
 from app.services.alert_service import AlertService
 from app.services.event_service import EventService
 from app.services.report_service import ReportService
+from app.services.email_service import EmailAlertService
 
 
 # ── Process-level singletons ──────────────────────────────────────────────────
