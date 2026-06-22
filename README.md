@@ -111,24 +111,30 @@ honeycloud/
 │       │   ├── ml.py                 ← train · status · predict
 │       │   ├── stats.py
 │       │   ├── reports.py
-│       │   └── simulate.py
+│       │   ├── simulate.py
+│       │   ├── users.py              ← admin: user management (add/deactivate)
+│       │   └── audit.py              ← admin: list system audit logs
 │       ├── schemas/                  ← Pydantic models
+│       │   └── audit.py              ← AuditLog schemas
 │       ├── models/
 │       │   ├── attack_event.py       ← ORM: events table
 │       │   ├── attacker_profile.py   ← ORM: per-IP profiles table
 │       │   ├── user.py               ← ORM: users table
-│       │   └── token_blacklist.py    ← ORM: revoked JWTs
+│       │   ├── token_blacklist.py    ← ORM: revoked JWTs
+│       │   └── audit_log.py          ← ORM: admin action logs
 │       ├── db/session.py
 │       ├── repositories/
 │       │   ├── event_repository.py
 │       │   ├── profile_repository.py
-│       │   └── analytics_repository.py
+│       │   ├── analytics_repository.py
+│       │   └── audit_repository.py    ← SQL queries for audit logs
 │       ├── services/
-│       │   ├── event_service.py      ← ingest pipeline + BackgroundTasks
+│       │   ├── event_service.py      ← ingest pipeline + BackgroundTasks + SIEM logging
 │       │   ├── profiler_service.py   ← pattern detection engine
 │       │   ├── alert_service.py
 │       │   ├── geo_service.py
-│       │   └── report_service.py
+│       │   ├── report_service.py     ← exports CSV, Excel, PDF summaries
+│       │   └── email_service.py      ← SMTP email alerting agent
 │       ├── honeypots/
 │       │   ├── base.py               ← BaseHoneypot ABC
 │       │   ├── ssh_honeypot.py
