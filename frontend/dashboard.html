@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     /* ════════════════════════════════════
        DESIGN TOKENS
@@ -584,6 +586,12 @@
       <div class="nav-item" onclick="showPage('credentials')" data-page="credentials">
         <span class="nav-icon">⊕</span> Credentials
       </div>
+      <div class="nav-item" onclick="showPage('threat-map')" data-page="threat-map">
+        <span class="nav-icon">⊗</span> Threat Map
+      </div>
+      <div class="nav-item" onclick="showPage('mitre')" data-page="mitre">
+        <span class="nav-icon">◬</span> MITRE ATT&CK
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="ws-row">
@@ -801,6 +809,70 @@
       </div>
     </section>
 
+    <!-- ── Threat Map (Leaflet.js) ──────────────────────────────── -->
+    <section class="page" id="page-threat-map">
+      <div class="page-header">
+        <div class="page-title">THREAT <span>MAP</span></div>
+        <div class="toolbar">
+          <div class="live-badge"><div class="live-dot"></div>REAL-TIME</div>
+          <button class="btn" onclick="loadThreatMap()">↺ REFRESH</button>
+        </div>
+      </div>
+      <div class="chart-card" style="padding: 0; overflow: hidden; border-radius: 12px;">
+        <div id="threat-map" style="height: 500px; width: 100%; background: #1a2332;"></div>
+      </div>
+      <div class="stat-grid" style="margin-top: 1rem;">
+        <div class="stat-card danger">
+          <div class="stat-label">MAP MARKERS</div>
+          <div class="stat-value" id="map-markers">—</div>
+          <div class="stat-sub">attack sources</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">TOP COUNTRY</div>
+          <div class="stat-value" id="map-top-country" style="font-size:1.1rem">—</div>
+          <div class="stat-sub">most attacks</div>
+        </div>
+        <div class="stat-card ok">
+          <div class="stat-label">COUNTRIES</div>
+          <div class="stat-value" id="map-countries">—</div>
+          <div class="stat-sub">unique origins</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── MITRE ATT&CK Analytics ──────────────────────────────── -->
+    <section class="page" id="page-mitre">
+      <div class="page-header">
+        <div class="page-title">MITRE <span>ATT&CK</span></div>
+        <div class="toolbar">
+          <button class="btn primary" onclick="loadMitre()">↺ REFRESH</button>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>◬ TECHNIQUE BREAKDOWN</h3>
+          <div class="chart-wrap"><canvas id="chart-mitre-technique"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>⬡ TACTIC DISTRIBUTION</h3>
+          <div class="chart-wrap"><canvas id="chart-mitre-tactic"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-top: 1rem;">
+        <h3>⊕ KNOWN TECHNIQUES</h3>
+        <div style="overflow-x: auto;">
+          <table class="feed-table" id="mitre-table">
+            <thead>
+              <tr>
+                <th>TECHNIQUE ID</th><th>NAME</th><th>TACTIC</th><th>DESCRIPTION</th>
+              </tr>
+            </thead>
+            <tbody id="mitre-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main><!-- /.main -->
 </div><!-- /#app -->
 
@@ -894,10 +966,10 @@ function initApp() {
 
 function refreshAll() { refreshOverview(); }
 
-// ── API helpers ───────────────────────────────────────────────────
+// ── API helpers (with automatic token refresh) ───────────────────
 
 async function api(path, opts = {}) {
-  const r = await fetch(`${API}${path}`, {
+  let r = await fetch(`${API}${path}`, {
     ...opts,
     headers: {
       'Authorization': `Bearer ${TOKEN}`,
@@ -905,9 +977,47 @@ async function api(path, opts = {}) {
       ...(opts.headers || {})
     }
   });
-  if (r.status === 401) { logout(); return null; }
+
+  // Attempt automatic token refresh on 401
+  if (r.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      // Retry the original request with the new token
+      r = await fetch(`${API}${path}`, {
+        ...opts,
+        headers: {
+          'Authorization': `Bearer ${TOKEN}`,
+          'Content-Type': 'application/json',
+          ...(opts.headers || {})
+        }
+      });
+    }
+    if (r.status === 401) { logout(); return null; }
+  }
+
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
+}
+
+async function tryRefreshToken() {
+  const refreshToken = sessionStorage.getItem('hc_refresh');
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    TOKEN = d.access_token;
+    sessionStorage.setItem('hc_token', d.access_token);
+    sessionStorage.setItem('hc_refresh', d.refresh_token || '');
+    toast('Session refreshed automatically', 'ok');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────────
@@ -921,6 +1031,8 @@ function showPage(name) {
   if (name === 'profiles')    loadProfiles();
   if (name === 'heatmap')     loadHeatmap();
   if (name === 'credentials') loadCredentials();
+  if (name === 'threat-map')  loadThreatMap();
+  if (name === 'mitre')       loadMitre();
   if (name === 'live-feed') {
     // Reset new event badge
     newEventCount = 0;
@@ -1387,6 +1499,191 @@ function deepMerge(target, source) {
   }
   return target;
 }
+
+// ── Leaflet Threat Map ────────────────────────────────────────────
+
+let threatMap = null;
+let mapMarkerLayer = null;
+
+async function loadThreatMap() {
+  try {
+    // Initialize map if not already done
+    if (!threatMap) {
+      threatMap = L.map('threat-map', {
+        center: [20, 0],
+        zoom: 2,
+        minZoom: 2,
+        maxZoom: 12,
+        zoomControl: true,
+        attributionControl: false,
+      });
+
+      // Dark-themed map tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }).addTo(threatMap);
+
+      mapMarkerLayer = L.layerGroup().addTo(threatMap);
+    }
+
+    // Fetch attacker profiles for geo data
+    const profiles = await api('/profiles/');
+    if (!profiles) return;
+
+    // Clear existing markers
+    mapMarkerLayer.clearLayers();
+
+    const severityColors = {
+      'CRITICAL': '#ef4444',
+      'HIGH':     '#f59e0b',
+      'MEDIUM':   '#8b5cf6',
+      'LOW':      '#94a3b8',
+      'BLOCKED':  '#ef4444',
+    };
+
+    let markerCount = 0;
+    const countries = {};
+
+    profiles.forEach(profile => {
+      const lat = profile.latitude || profile.lat;
+      const lng = profile.longitude || profile.lon || profile.lng;
+
+      if (lat && lng && lat !== 0 && lng !== 0) {
+        const color = severityColors[profile.risk_tier] || '#8b5cf6';
+        const radius = Math.min(Math.max(profile.event_count * 0.5, 4), 20);
+
+        const marker = L.circleMarker([lat, lng], {
+          radius: radius,
+          fillColor: color,
+          color: color,
+          weight: 1,
+          opacity: 0.8,
+          fillOpacity: 0.5,
+        });
+
+        marker.bindPopup(`
+          <div style="font-family:monospace;font-size:12px;min-width:180px;">
+            <b style="color:${color}">${profile.source_ip}</b><br>
+            <hr style="border-color:rgba(255,255,255,.2);margin:4px 0;">
+            Country: <b>${profile.country || 'N/A'}</b><br>
+            Events: <b>${profile.event_count || 0}</b><br>
+            Risk: <b style="color:${color}">${profile.risk_tier}</b><br>
+            Score: <b>${(profile.risk_score || 0).toFixed(1)}</b>
+          </div>
+        `);
+
+        mapMarkerLayer.addLayer(marker);
+        markerCount++;
+
+        const country = profile.country || 'Unknown';
+        countries[country] = (countries[country] || 0) + (profile.event_count || 1);
+      }
+    });
+
+    // Update stats
+    setText('map-markers', fmt(markerCount));
+    setText('map-countries', fmt(Object.keys(countries).length));
+
+    // Top country
+    const topCountry = Object.entries(countries).sort((a, b) => b[1] - a[1])[0];
+    setText('map-top-country', topCountry ? topCountry[0] : '—');
+
+    // Force map resize
+    setTimeout(() => threatMap.invalidateSize(), 100);
+
+  } catch (err) {
+    console.error('Threat map error:', err);
+  }
+}
+
+
+// ── MITRE ATT&CK Analytics ───────────────────────────────────────
+
+async function loadMitre() {
+  try {
+    const [stats, techniques] = await Promise.all([
+      api('/mitre/stats'),
+      api('/mitre/techniques'),
+    ]);
+
+    if (!stats || !techniques) return;
+
+    // Technique chart
+    const techLabels = Object.keys(stats.by_technique || {});
+    const techValues = Object.values(stats.by_technique || {});
+
+    const techColors = ['#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#10b981', '#06b6d4'];
+
+    if (charts['mitre-technique']) charts['mitre-technique'].destroy();
+    charts['mitre-technique'] = new Chart(document.getElementById('chart-mitre-technique'), {
+      type: 'bar',
+      data: {
+        labels: techLabels,
+        datasets: [{
+          label: 'Events',
+          data: techValues,
+          backgroundColor: techLabels.map((_, i) => techColors[i % techColors.length] + '80'),
+          borderColor: techLabels.map((_, i) => techColors[i % techColors.length]),
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#94a3b8', font: { family: "'Share Tech Mono'" } }, grid: { color: 'rgba(255,255,255,.05)' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,.05)' } },
+        },
+      }
+    });
+
+    // Tactic chart
+    const tacLabels = Object.keys(stats.by_tactic || {});
+    const tacValues = Object.values(stats.by_tactic || {});
+
+    if (charts['mitre-tactic']) charts['mitre-tactic'].destroy();
+    charts['mitre-tactic'] = new Chart(document.getElementById('chart-mitre-tactic'), {
+      type: 'doughnut',
+      data: {
+        labels: tacLabels,
+        datasets: [{
+          data: tacValues,
+          backgroundColor: tacLabels.map((_, i) => techColors[i % techColors.length] + 'cc'),
+          borderColor: '#0f172a',
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#94a3b8', font: { family: "'Share Tech Mono'" } } },
+        },
+      }
+    });
+
+    // Techniques table
+    const tbody = document.getElementById('mitre-body');
+    tbody.innerHTML = '';
+    for (const [tid, tech] of Object.entries(techniques)) {
+      const count = (stats.by_technique || {})[tid] || 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:var(--accent);font-family:'Share Tech Mono',monospace;font-weight:700">${tid}</td>
+        <td style="font-weight:600">${tech.name}</td>
+        <td><span class="badge badge-MEDIUM">${tech.tactic}</span></td>
+        <td style="color:var(--muted);font-size:.78rem">${tech.description}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+  } catch (err) {
+    console.error('MITRE load error:', err);
+  }
+}
+
 </script>
 </body>
 </html>
