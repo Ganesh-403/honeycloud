@@ -40,22 +40,59 @@ async def lifespan(app: FastAPI):
     import app.models.user              # noqa: F401
     import app.models.token_blacklist   # noqa: F401
     import app.models.audit_log         # noqa: F401
+    import app.models.role              # noqa: F401
+    import app.models.mitre_mapping     # noqa: F401
+    import app.models.threat_score      # noqa: F401
+    import app.models.alert             # noqa: F401
+    import app.models.report            # noqa: F401
     create_all_tables()
     logger.info("Database tables verified.")
 
-    # Seed default users if database is empty
+    # Seed default roles and users if database is empty
     from app.db.session import SessionLocal
+    from app.models.role import Role, DEFAULT_ROLES, ROLE_HIERARCHY
     from app.repositories.user_repository import UserRepository
     db = SessionLocal()
     try:
+        # Seed default roles (owner, admin, analyst)
+        for role_def in DEFAULT_ROLES:
+            existing = db.query(Role).filter(Role.name == role_def["name"]).first()
+            if not existing:
+                db.add(Role(
+                    name=role_def["name"],
+                    description=role_def["description"],
+                    weight=ROLE_HIERARCHY[role_def["name"]],
+                ))
+                logger.info("Created role: %s", role_def["name"])
+        db.commit()
+
         user_repo = UserRepository(db)
+
+        # Create default owner superuser if it doesn't exist
+        if not user_repo.get_by_username("owner"):
+            owner_role = db.query(Role).filter(Role.name == "owner").first()
+            user = user_repo.create("owner", "owner123", role="owner")
+            if owner_role:
+                user.role_id = owner_role.id
+                db.commit()
+            logger.info("Created default owner user.")
+
         # Create default admin user if it doesn't exist
         if not user_repo.get_by_username("admin"):
-            user_repo.create("admin", "admin123", role="admin")
+            admin_role = db.query(Role).filter(Role.name == "admin").first()
+            user = user_repo.create("admin", "admin123", role="admin")
+            if admin_role:
+                user.role_id = admin_role.id
+                db.commit()
             logger.info("Created default admin user.")
+
         # Create default analyst user if it doesn't exist
         if not user_repo.get_by_username("analyst"):
-            user_repo.create("analyst", "analyst123", role="analyst")
+            analyst_role = db.query(Role).filter(Role.name == "analyst").first()
+            user = user_repo.create("analyst", "analyst123", role="analyst")
+            if analyst_role:
+                user.role_id = analyst_role.id
+                db.commit()
             logger.info("Created default analyst user.")
     finally:
         db.close()

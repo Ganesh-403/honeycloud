@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -11,15 +12,23 @@ from app.core.security import (
     add_token_to_blacklist,
     authenticate_user,
     create_access_token,
+    create_refresh_token,
     extract_token_info,
     get_current_user,
     oauth2_scheme,
+    verify_refresh_token,
 )
 from app.db.session import get_db
 from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import Token, UserRead
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+class RefreshRequest(BaseModel):
+    """Body for the /refresh endpoint."""
+    refresh_token: str
 
 
 @router.post("/login", response_model=Token)
@@ -30,7 +39,7 @@ def login(
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db),
 ):
-    """Authenticate and return a JWT bearer token. Rate-limited to 10/min per IP."""
+    """Authenticate and return JWT access + refresh tokens. Rate-limited to 10/min per IP."""
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
         raise HTTPException(
@@ -38,12 +47,18 @@ def login(
             detail="Invalid username or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token(
+    access = create_access_token(
         user_id=user.id,
         username=user.username,
         role=user.role,
         settings=settings,
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    refresh = create_refresh_token(
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        settings=settings,
     )
 
     # Log successful login to audit trail
@@ -57,8 +72,53 @@ def login(
         description=f"User {user.username} authenticated successfully with role {user.role}.",
     )
 
-    return Token(access_token=token, token_type="bearer",
-                 username=user.username, role=user.role)
+    return Token(
+        access_token=access,
+        refresh_token=refresh,
+        token_type="bearer",
+        username=user.username,
+        role=user.role,
+    )
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(
+    body: RefreshRequest,
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+):
+    """Exchange a valid refresh token for a new access + refresh token pair (token rotation)."""
+    payload = verify_refresh_token(body.refresh_token, settings, db)
+
+    username = payload.get("sub")
+    user_id = payload.get("uid")
+    role = payload.get("role", "analyst")
+
+    # Blacklist the old refresh token (one-time use)
+    old_jti = payload.get("jti")
+    if old_jti:
+        exp_ts = payload.get("exp", 0)
+        add_token_to_blacklist(
+            old_jti, username,
+            datetime.fromtimestamp(exp_ts, tz=timezone.utc),
+            db,
+        )
+
+    # Issue new pair
+    new_access = create_access_token(
+        user_id=user_id, username=username, role=role, settings=settings,
+    )
+    new_refresh = create_refresh_token(
+        user_id=user_id, username=username, role=role, settings=settings,
+    )
+
+    return Token(
+        access_token=new_access,
+        refresh_token=new_refresh,
+        token_type="bearer",
+        username=username,
+        role=role,
+    )
 
 
 @router.get("/me", response_model=UserRead)

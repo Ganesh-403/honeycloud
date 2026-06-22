@@ -1,6 +1,6 @@
 """
 EventService – core business logic for attack event lifecycle.
-Orchestrates: ingest → enrich → classify → persist → [background] profile + alert + broadcast.
+Orchestrates: ingest → enrich → classify → MITRE map → persist → [background] profile + alert + broadcast.
 """
 from __future__ import annotations
 
@@ -71,6 +71,8 @@ class EventService:
 
         if background_tasks:
             background_tasks.add_task(self._background_profile, event.source_ip, event.id)
+            background_tasks.add_task(self._background_mitre_map, event.id, event_dict)
+            background_tasks.add_task(self._background_threat_score, event)
             if event.severity in ("CRITICAL", "HIGH"):
                 background_tasks.add_task(self._alert.dispatch, event)
                 background_tasks.add_task(self._email.dispatch, event)
@@ -121,6 +123,72 @@ class EventService:
                 ProfilerService(db).process_event(event)
         except Exception as exc:
             logger.error("Background profile update failed ip=%s: %s", ip, exc)
+        finally:
+            db.close()
+
+    def _background_mitre_map(self, event_id: int, event_dict: dict) -> None:
+        """Map the event to MITRE ATT&CK techniques and persist to database."""
+        from app.db.session import SessionLocal
+        from app.services.mitre_service import MitreService
+        from app.repositories.mitre_repository import MitreRepository
+
+        db = SessionLocal()
+        try:
+            mitre_svc = MitreService()
+            mitre_repo = MitreRepository(db)
+            matches = mitre_svc.map_event(event_dict)
+            for match in matches:
+                mitre_repo.create(
+                    event_id=event_id,
+                    technique_id=match["technique_id"],
+                    technique_name=match["technique_name"],
+                    tactic=match["tactic"],
+                    confidence=match["confidence"],
+                )
+            if matches:
+                logger.debug("MITRE mapped %d techniques for event %d", len(matches), event_id)
+        except Exception as exc:
+            logger.error("MITRE mapping failed for event %d: %s", event_id, exc)
+        finally:
+            db.close()
+
+    def _background_threat_score(self, event: AttackEvent) -> None:
+        """Update the threat score record for this event's source IP."""
+        from app.db.session import SessionLocal
+        from app.models.threat_score import ThreatScore
+        from sqlalchemy import select
+
+        db = SessionLocal()
+        try:
+            # Find or create threat score record
+            score_rec = db.scalar(
+                select(ThreatScore).where(ThreatScore.source_ip == event.source_ip)
+            )
+            if not score_rec:
+                score_rec = ThreatScore(source_ip=event.source_ip)
+                db.add(score_rec)
+
+            # Increment counters
+            score_rec.event_count += 1
+            if event.severity == "CRITICAL":
+                score_rec.critical_count += 1
+            elif event.severity == "HIGH":
+                score_rec.high_count += 1
+
+            score_rec.last_seen = datetime.now(timezone.utc)
+
+            # Compute normalized 0-100 threat score
+            # Formula: base + severity bonus + event frequency bonus (capped at 100)
+            base = min(score_rec.event_count * 2, 40)                  # up to 40 from volume
+            crit_bonus = min(score_rec.critical_count * 15, 30)        # up to 30 from critical
+            high_bonus = min(score_rec.high_count * 8, 20)             # up to 20 from high
+            ml_bonus = min(event.threat_score * 10, 10) if event.threat_score else 0
+
+            score_rec.score = min(base + crit_bonus + high_bonus + ml_bonus, 100.0)
+
+            db.commit()
+        except Exception as exc:
+            logger.error("Threat score update failed for %s: %s", event.source_ip, exc)
         finally:
             db.close()
 

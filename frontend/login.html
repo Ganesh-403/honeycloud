@@ -331,6 +331,7 @@
         }
 
         sessionStorage.setItem('hc_token', d.access_token);
+        sessionStorage.setItem('hc_refresh', d.refresh_token || '');
         sessionStorage.setItem('hc_user',  d.username);
         sessionStorage.setItem('hc_role',  d.role);
 

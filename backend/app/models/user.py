@@ -4,7 +4,8 @@ Maps to the 'users' table.
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, String, Boolean, Integer
+from sqlalchemy import Column, DateTime, ForeignKey, String, Boolean, Integer
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.session import Base
@@ -18,7 +19,8 @@ class User(Base):
     id          = Column(Integer, primary_key=True, index=True, autoincrement=True)
     username    = Column(String(255), nullable=False, unique=True, index=True)
     hashed_password = Column(String(255), nullable=False)  # bcrypt hash (~60 chars)
-    role        = Column(String(50), nullable=False, default="analyst", index=True)  # admin | analyst
+    role        = Column(String(50), nullable=False, default="analyst", index=True)  # owner | admin | analyst
+    role_id     = Column(Integer, ForeignKey("roles.id"), nullable=True)  # FK → roles table
     
     is_active   = Column(Boolean, default=True, nullable=False, index=True)
     is_deleted  = Column(Boolean, default=False, nullable=False, index=True)
@@ -31,6 +33,9 @@ class User(Base):
                         onupdate=lambda: datetime.now(timezone.utc),
                         nullable=False)
     last_login  = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationship to Role (optional but enables role_rel.name lookups)
+    role_rel    = relationship("Role", back_populates="users", lazy="joined")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username} role={self.role}>"

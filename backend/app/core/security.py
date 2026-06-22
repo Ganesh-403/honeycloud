@@ -26,6 +26,11 @@ logger = get_logger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+# Role hierarchy: higher weight = more privileges
+ROLE_WEIGHT = {"owner": 30, "admin": 20, "analyst": 10}
+
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
 # ---------------------------------------------------------------------------
 # Password helpers
 # ---------------------------------------------------------------------------
@@ -56,6 +61,7 @@ def create_access_token(
         "sub": username,
         "uid": user_id,
         "role": role,
+        "type": "access",
         "jti": str(uuid.uuid4()),  # JWT ID for revocation
     }
     now = datetime.now(timezone.utc)
@@ -67,6 +73,65 @@ def create_access_token(
 
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token
+
+
+def create_refresh_token(
+    user_id: int,
+    username: str,
+    role: str,
+    settings: Settings,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+    """Create a long-lived JWT refresh token."""
+    payload = {
+        "sub": username,
+        "uid": user_id,
+        "role": role,
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
+    }
+    now = datetime.now(timezone.utc)
+    expire = now + (
+        expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    payload["exp"] = expire
+    payload["iat"] = now
+
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token
+
+
+def verify_refresh_token(
+    token: str,
+    settings: Settings,
+    db: Session,
+) -> dict:
+    """
+    Verify a refresh token and return payload.
+    Raises HTTPException on invalid/expired/blacklisted tokens.
+    """
+    credentials_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_exp": True},
+        )
+        if payload.get("type") != "refresh":
+            raise credentials_exc
+
+        token_jti = payload.get("jti")
+        if token_jti and is_token_blacklisted(token_jti, db):
+            raise credentials_exc
+
+        return payload
+    except JWTError:
+        raise credentials_exc
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +207,26 @@ def extract_token_info(token: str, settings: Settings) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Role hierarchy helpers
+# ---------------------------------------------------------------------------
+
+def _get_role_weight(role: str) -> int:
+    """Return the numeric weight for a role string."""
+    return ROLE_WEIGHT.get(role.lower(), 0)
+
+
+def _check_minimum_role(user: User, min_role: str) -> None:
+    """Raise 403 if user's role weight is below the minimum required."""
+    user_weight = _get_role_weight(user.role)
+    required_weight = _get_role_weight(min_role)
+    if user_weight < required_weight:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{min_role.capitalize()} access required. Your role: {user.role}.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # FastAPI dependencies
 # ---------------------------------------------------------------------------
 
@@ -196,11 +281,20 @@ async def get_current_user(
     return user
 
 
-async def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency to ensure current user has admin role."""
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required.",
-        )
+async def require_owner(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure current user has owner role (highest privilege)."""
+    _check_minimum_role(current_user, "owner")
     return current_user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure current user has admin role or higher (owner inherits admin)."""
+    _check_minimum_role(current_user, "admin")
+    return current_user
+
+
+async def require_analyst(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure current user has at least analyst role (any authenticated user)."""
+    _check_minimum_role(current_user, "analyst")
+    return current_user
+
