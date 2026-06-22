@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     TELEGRAM_CHAT_ID: str = ""
     TELEGRAM_ALERTS_ENABLED: bool = False
 
+    # ── Email alerts ──────────────────────────────────────────────────────────
+    EMAIL_ALERTS_ENABLED: bool = False
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = ""
+    EMAIL_TO: str = ""
+
     # ── Geo-IP ────────────────────────────────────────────────────────────────
     GEOIP_TIMEOUT_SECONDS: int = 5
     ABUSEIPDB_API_KEY: str = ""

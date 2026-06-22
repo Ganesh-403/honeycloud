@@ -45,6 +45,18 @@ def login(
         settings=settings,
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+
+    # Log successful login to audit trail
+    from app.api.deps import get_audit_repo
+    client_ip = request.client.host if request.client else "0.0.0.0"
+    get_audit_repo(db).log(
+        username=user.username,
+        action="LOGIN",
+        client_ip=client_ip,
+        target=user.username,
+        description=f"User {user.username} authenticated successfully with role {user.role}.",
+    )
+
     return Token(access_token=token, token_type="bearer",
                  username=user.username, role=user.role)
 
@@ -57,6 +69,7 @@ def me(current_user: User = Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     current_user: User = Depends(get_current_user),
     token: str = Depends(oauth2_scheme),
     settings: Settings = Depends(get_settings),
@@ -73,5 +86,16 @@ async def logout(
             current_user.username,
             exp_datetime,
             db,
+        )
+
+        # Log successful logout to audit trail
+        from app.api.deps import get_audit_repo
+        client_ip = request.client.host if request.client else "0.0.0.0"
+        get_audit_repo(db).log(
+            username=current_user.username,
+            action="LOGOUT",
+            client_ip=client_ip,
+            target=current_user.username,
+            description=f"User {current_user.username} logged out successfully.",
         )
     return {"detail": "Successfully logged out."}

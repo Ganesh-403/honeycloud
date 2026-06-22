@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
     import app.models.attacker_profile  # noqa: F401
     import app.models.user              # noqa: F401
     import app.models.token_blacklist   # noqa: F401
+    import app.models.audit_log         # noqa: F401
     create_all_tables()
     logger.info("Database tables verified.")
 

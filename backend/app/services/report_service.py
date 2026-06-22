@@ -18,7 +18,7 @@ from app.schemas.stats import StatsResponse
 
 logger = get_logger(__name__)
 
-ReportFormat = Literal["csv", "xlsx", "txt"]
+ReportFormat = Literal["csv", "xlsx", "txt", "pdf"]
 
 
 class ReportService:
@@ -36,7 +36,7 @@ class ReportService:
     ) -> Path:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = self._dir / f"attack_report_{ts}.{fmt}"
-        generators = {"csv": self._csv, "xlsx": self._xlsx, "txt": self._txt}
+        generators = {"csv": self._csv, "xlsx": self._xlsx, "txt": self._txt, "pdf": self._pdf}
         generators[fmt](events, stats, path)
         logger.info("Report generated: %s (%d events)", path.name, len(events))
         return path
@@ -160,3 +160,109 @@ class ReportService:
                 ws_ev.cell(row, 6).fill = fill
 
         wb.save(path)
+
+    @staticmethod
+    def _pdf(events: list[AttackEvent], stats: StatsResponse, path: Path) -> None:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.colors import HexColor
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+        doc = SimpleDocTemplate(str(path), pagesize=letter,
+                                rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+        story = []
+        styles = getSampleStyleSheet()
+
+        # Styles
+        title_style = ParagraphStyle(
+            'TitleStyle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=22,
+            textColor=HexColor('#0F172A'),
+            spaceAfter=12
+        )
+        subtitle_style = ParagraphStyle(
+            'SubtitleStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica-Oblique',
+            fontSize=10,
+            textColor=HexColor('#64748B'),
+            spaceAfter=20
+        )
+        h2_style = ParagraphStyle(
+            'Heading2Style',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=HexColor('#1E293B'),
+            spaceBefore=12,
+            spaceAfter=8
+        )
+        body_style = ParagraphStyle(
+            'BodyStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=HexColor('#334155'),
+            spaceAfter=6
+        )
+
+        story.append(Paragraph("HoneyCloud Threat Intelligence Report", title_style))
+        story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
+
+        # Executive Summary Section
+        story.append(Paragraph("Executive Summary", h2_style))
+        story.append(Paragraph(f"<b>Total Events Logged:</b> {stats.total_events}", body_style))
+        
+        # Summary Table
+        summary_data = [["Metric", "Value"]]
+        summary_data.append(["Critical Threats", stats.events_by_severity.get("CRITICAL", 0)])
+        summary_data.append(["High Threats", stats.events_by_severity.get("HIGH", 0)])
+        summary_data.append(["Malicious (AI)", stats.ai_labels.get("malicious", 0)])
+        
+        sum_table = Table(summary_data, colWidths=[150, 100])
+        sum_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (1, 0), HexColor('#0F172A')),
+            ('TEXTCOLOR', (0, 0), (1, 0), HexColor('#FFFFFF')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [HexColor('#F8FAFC'), HexColor('#FFFFFF')]),
+            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E2E8F0')),
+        ]))
+        story.append(sum_table)
+        story.append(Spacer(1, 15))
+
+        # Recent Events Section
+        story.append(Paragraph("Recent Ingested Events (Last 15)", h2_style))
+        
+        event_headers = ["ID", "Timestamp", "Service", "Source IP", "Severity", "AI Label"]
+        event_data = [event_headers]
+        for e in events[:15]:
+            event_data.append([
+                str(e.id),
+                e.timestamp.strftime('%Y-%m-%d %H:%M:%S') if hasattr(e.timestamp, 'strftime') else str(e.timestamp),
+                e.service,
+                e.source_ip,
+                e.severity,
+                e.ai_label or "unknown"
+            ])
+            
+        evt_table = Table(event_data, colWidths=[35, 120, 60, 100, 60, 65])
+        evt_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HexColor('#1F2937')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#FFFFFF')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [HexColor('#F3F4F6'), HexColor('#FFFFFF')]),
+            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E5E7EB')),
+        ]))
+        story.append(evt_table)
+
+        doc.build(story)
+

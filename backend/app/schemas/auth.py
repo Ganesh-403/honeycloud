@@ -30,3 +30,10 @@ class UserRead(BaseModel):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "analyst"
+

@@ -16,6 +16,7 @@ from app.repositories.event_repository import EventRepository
 from app.schemas.event import EventFilters, EventIngest
 from app.schemas.stats import StatsResponse
 from app.services.alert_service import AlertService
+from app.services.email_service import EmailAlertService
 from app.services.geo_service import lookup_location, resolve_ip
 from app.ml.detector import MLThreatDetector
 
@@ -27,10 +28,12 @@ class EventService:
         self,
         repo: EventRepository,
         alert_svc: AlertService,
+        email_svc: EmailAlertService,
         detector: MLThreatDetector,
     ):
         self._repo = repo
         self._alert = alert_svc
+        self._email = email_svc
         self._ml = detector
 
     async def ingest(
@@ -63,16 +66,50 @@ class EventService:
             event.id, event.service, event.source_ip, event.severity, event.ai_label,
         )
 
+        # Log event in Common Event Format (CEF) for SIEM integration
+        self._log_cef(event)
+
         if background_tasks:
             background_tasks.add_task(self._background_profile, event.source_ip, event.id)
             if event.severity in ("CRITICAL", "HIGH"):
                 background_tasks.add_task(self._alert.dispatch, event)
+                background_tasks.add_task(self._email.dispatch, event)
             background_tasks.add_task(self._broadcast_event, event)
         else:
             if event.severity in ("CRITICAL", "HIGH"):
                 self._alert.dispatch(event)
+                self._email.dispatch(event)
 
         return event
+
+    def _log_cef(self, event: AttackEvent) -> None:
+        """Log event in Common Event Format (CEF) for SIEM integration."""
+        try:
+            sev_map = {"LOW": 3, "MEDIUM": 5, "HIGH": 7, "CRITICAL": 10}
+            cef_severity = sev_map.get(event.severity, 5)
+
+            # Map extensions
+            extensions = {
+                "src": event.source_ip,
+                "spt": str(event.source_port or 0),
+                "proto": event.service,
+                "duser": event.username or "N/A",
+                "msg": (event.command or "N/A").replace("=", "\\="),
+                "outcome": event.ai_label or "unknown",
+                "cn1": f"{event.threat_score:.2f}",
+                "cn1Label": "threat_score"
+            }
+            ext_str = " ".join(f"{k}={v}" for k, v in extensions.items() if v)
+
+            cef_log = (
+                f"CEF:0|HoneyCloud|HoneypotEngine|2.0.0|{event.service}_ATTACK|"
+                f"Attack Event Captured|{cef_severity}|{ext_str}"
+            )
+            # Log to dedicated SIEM category logger (prints to console/syslog)
+            siem_logger = get_logger("honeycloud.siem")
+            siem_logger.info(cef_log)
+        except Exception as exc:
+            logger.error("Failed to generate CEF log for event %d: %s", event.id, exc)
 
     def _background_profile(self, ip: str, event_id: int) -> None:
         from app.db.session import SessionLocal

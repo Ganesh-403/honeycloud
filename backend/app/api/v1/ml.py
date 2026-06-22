@@ -5,9 +5,11 @@ ML Engine management routes (admin-only).
   GET  /api/v1/ml/status      – current model status and feature info
   POST /api/v1/ml/predict     – run a single-event prediction (debug/demo)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_event_service, get_ml_detector
+from app.api.deps import get_event_service, get_ml_detector, get_audit_repo
+from app.db.session import get_db
 from app.core.logging import get_logger
 from app.core.security import get_current_user, require_admin
 from app.ml.detector import MLThreatDetector
@@ -41,9 +43,11 @@ def ml_status(
 
 @router.post("/train", summary="Train ML model on stored events (admin)")
 def train_model(
+    request: Request,
     current_user: UserInDB = Depends(require_admin),
     svc: EventService = Depends(get_event_service),
     detector: MLThreatDetector = Depends(get_ml_detector),
+    db: Session = Depends(get_db),
 ):
     """
     Admin-only. Trains (or re-trains) the LSTM classifier on all events
@@ -79,6 +83,16 @@ def train_model(
 
     detector.save()
     logger.info("ML model trained by admin '%s' on %d events.", current_user.username, len(events))
+
+    # Log action to audit trail
+    client_ip = request.client.host if request.client else "0.0.0.0"
+    get_audit_repo(db).log(
+        username=current_user.username,
+        action="TRAIN_ML",
+        client_ip=client_ip,
+        target="data/ml_model.keras",
+        description=f"Trained ML threat detector model on {len(events)} events successfully.",
+    )
 
     return {
         "status":         "success",

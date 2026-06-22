@@ -27,6 +27,12 @@ def get_alert_service() -> AlertService:
 
 
 @lru_cache
+def get_email_service() -> EmailAlertService:
+    from app.services.email_service import EmailAlertService
+    return EmailAlertService()
+
+
+@lru_cache
 def get_ml_detector() -> MLThreatDetector:
     return MLThreatDetector()
 
@@ -58,9 +64,15 @@ def get_token_blacklist_repo(db: Session = Depends(get_db)) -> TokenBlacklistRep
     return TokenBlacklistRepository(db)
 
 
+def get_audit_repo(db: Session = Depends(get_db)) -> AuditRepository:
+    from app.repositories.audit_repository import AuditRepository
+    return AuditRepository(db)
+
+
 def get_event_service(
     repo: EventRepository = Depends(get_event_repo),
     alert_svc: AlertService = Depends(get_alert_service),
+    email_svc: EmailAlertService = Depends(get_email_service),
     detector: MLThreatDetector = Depends(get_ml_detector),
 ) -> EventService:
-    return EventService(repo, alert_svc, detector)
+    return EventService(repo, alert_svc, email_svc, detector)

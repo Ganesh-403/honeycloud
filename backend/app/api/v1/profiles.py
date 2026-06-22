@@ -10,9 +10,11 @@ Endpoints:
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_profile_repo
+from app.api.deps import get_profile_repo, get_audit_repo
+from app.db.session import get_db
 from app.core.security import get_current_user, require_admin
 from app.repositories.profile_repository import ProfileRepository
 from app.schemas.auth import UserInDB
@@ -92,8 +94,10 @@ def get_profile(
 def block_ip(
     ip_address: str,
     body: BlockRequest,
+    request: Request,
     current_user: UserInDB = Depends(require_admin),
     repo: ProfileRepository = Depends(get_profile_repo),
+    db: Session = Depends(get_db),
 ):
     """
     Admin-only. Marks an IP as blocked with a reason and timestamp.
@@ -115,7 +119,18 @@ def block_ip(
     profile.block_reason = body.reason
     profile.blocked_at   = datetime.now(timezone.utc)
     profile.risk_tier    = "BLOCKED"
-    return repo.save(profile)
+    saved = repo.save(profile)
+
+    # Log action to audit trail
+    client_ip = request.client.host if request.client else "0.0.0.0"
+    get_audit_repo(db).log(
+        username=current_user.username,
+        action="BLOCK_IP",
+        client_ip=client_ip,
+        target=ip_address,
+        description=f"Blocked IP: {ip_address}. Reason: {body.reason}",
+    )
+    return saved
 
 
 @router.post(
@@ -125,8 +140,10 @@ def block_ip(
 )
 def unblock_ip(
     ip_address: str,
+    request: Request,
     current_user: UserInDB = Depends(require_admin),
     repo: ProfileRepository = Depends(get_profile_repo),
+    db: Session = Depends(get_db),
 ):
     """Admin-only. Removes the block flag and re-evaluates the risk tier."""
     profile = repo.get_by_ip(ip_address)
@@ -147,4 +164,15 @@ def unblock_ip(
     # Recompute tier without BLOCKED override
     from app.services.profiler_service import _assign_tier, _compute_risk_score
     profile.risk_tier = _assign_tier(_compute_risk_score(profile), is_blocked=False)
-    return repo.save(profile)
+    saved = repo.save(profile)
+
+    # Log action to audit trail
+    client_ip = request.client.host if request.client else "0.0.0.0"
+    get_audit_repo(db).log(
+        username=current_user.username,
+        action="UNBLOCK_IP",
+        client_ip=client_ip,
+        target=ip_address,
+        description=f"Unblocked IP: {ip_address}.",
+    )
+    return saved
