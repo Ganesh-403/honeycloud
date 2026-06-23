@@ -134,6 +134,8 @@ class ProfilerService:
         profile.country_code = geo.get("country_code")
         profile.city         = geo.get("city")
         profile.isp          = geo.get("isp")
+        profile.latitude     = geo.get("latitude")
+        profile.longitude    = geo.get("longitude")
 
     def _update_credentials(self, profile: AttackerProfile, event: AttackEvent) -> None:
         """Track username/password frequency for credential analysis."""

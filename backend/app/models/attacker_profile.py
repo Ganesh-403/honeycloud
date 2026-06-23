@@ -35,6 +35,8 @@ class AttackerProfile(Base):
     country_code = Column(String(4),   nullable=True)
     city         = Column(String(100), nullable=True)
     isp          = Column(String(255), nullable=True)
+    latitude     = Column(Float,       nullable=True)
+    longitude    = Column(Float,       nullable=True)
 
     # ── Behaviour fingerprint ─────────────────────────────────────────────────
     # JSON arrays / dicts stored as JSON column for flexibility

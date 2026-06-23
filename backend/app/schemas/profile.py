@@ -17,6 +17,8 @@ class ProfileResponse(BaseModel):
     country_code: Optional[str]
     city: Optional[str]
     isp: Optional[str]
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     services_targeted: list[str]
     top_username: Optional[str]
     top_password: Optional[str]
@@ -47,5 +49,7 @@ class ProfileSummary(BaseModel):
     brute_force_detected: bool
     scanner_detected: bool
     last_seen: datetime
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)

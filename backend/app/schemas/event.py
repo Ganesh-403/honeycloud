@@ -23,6 +23,8 @@ class LocationInfo(BaseModel):
     total_reports: int = 0
     is_whitelisted: bool = False
     usage_type: str = "Unknown"
+    latitude: float = 0.0
+    longitude: float = 0.0
 
 
 # ---------------------------------------------------------------------------
