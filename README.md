@@ -35,23 +35,23 @@
 │  Browser                FastAPI Backend            Database          │
 │  ┌────────┐  HTTPS/WS  ┌──────────────────────┐  ┌──────────────┐  │
 │  │Dashboard│◄──────────►│  API Layer           │  │SQLite /      │  │
-│  │(nginx) │            │  auth · events        │  │Postgres      │  │
-│  └────────┘            │  analytics · profiles │◄─│              │  │
-│                         │  ml · reports         │  └──────────────┘  │
-│  Honeypots              └──────┬───────────────┘                     │
-│  ┌───────┐  POST /ingest       │ Services layer                      │
+│  │(nginx) │            │  auth · events       │  │Postgres      │  │
+│  └────────┘            │  analytics · profiles│◄─│              │  │
+│                        │  ml · reports · mitre│  └──────────────┘  │
+│  Honeypots             └──────┬───────────────┘                     │
+│  ┌───────┐  POST /ingest      │ Services layer                      │
 │  │SSH    │──────────────►  EventService                              │
 │  │FTP    │              ProfilerService                              │
 │  │HTTP   │              AlertService (Telegram)                      │
-│  │TELNET │              ReportService (CSV/XLSX/TXT)                 │
-│  │SMTP   │                                                        │
+│  │TELNET │              MitreService                                 │
+│  │SMTP   │              ReportService (CSV/XLSX/TXT)                 │
 │  │RDP    │                                                        │
 │  └───────┘                                                        │
-│                                │                                     │
-│  Attackers                     │  ML Engine                          │
-│  (Internet) ──TCP──► Honeypots │  Keras LSTM                         │
-│                                │  10 semantic features               │
-│  Telegram ◄─── Alerts ─────────┘                                    │
+│                               │                                     │
+│  Attackers                    │  ML Engine                          │
+│  (Internet) ──TCP──► Honeypots│  LSTM & Random Forest               │
+│                               │  10 semantic features               │
+│  Telegram ◄─── Alerts ────────┘                                    │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,11 +60,12 @@
 TCP → Honeypot → POST /ingest (201 ~50ms)
                       │
                ┌──────┴──────────────────────────────────┐
-               │ sync                                     │ background
+               │ sync                                    │ background
                │  resolve IP                             │  update AttackerProfile
                │  geo-enrich                             │  pattern detection
-               │  ML classify                            │  Telegram alert
-               │  DB persist                             │  WebSocket broadcast
+               │  ML classify (LSTM & RF)                │  Telegram alert
+               │  MITRE ATT&CK map                       │  WebSocket broadcast
+               │  DB persist                             │
                └─────────────────────────────────────────┘
 ```
 
@@ -109,6 +110,7 @@ honeycloud/
 │       │   ├── analytics.py          ← 7 analytics endpoints
 │       │   ├── profiles.py           ← attacker profiles + block/unblock
 │       │   ├── ml.py                 ← train · status · predict
+│       │   ├── mitre.py              ← MITRE ATT&CK techniques & stats
 │       │   ├── stats.py
 │       │   ├── reports.py
 │       │   ├── simulate.py
@@ -121,18 +123,22 @@ honeycloud/
 │       │   ├── attacker_profile.py   ← ORM: per-IP profiles table
 │       │   ├── user.py               ← ORM: users table
 │       │   ├── token_blacklist.py    ← ORM: revoked JWTs
-│       │   └── audit_log.py          ← ORM: admin action logs
+│       │   ├── audit_log.py          ← ORM: admin action logs
+│       │   ├── mitre_mapping.py      ← ORM: mitre technique mappings
+│       │   └── threat_score.py       ← ORM: threat metrics table
 │       ├── db/session.py
 │       ├── repositories/
 │       │   ├── event_repository.py
 │       │   ├── profile_repository.py
 │       │   ├── analytics_repository.py
-│       │   └── audit_repository.py    ← SQL queries for audit logs
+│       │   ├── audit_repository.py    ← SQL queries for audit logs
+│       │   └── mitre_repository.py    ← DB operations for MITRE mapping
 │       ├── services/
 │       │   ├── event_service.py      ← ingest pipeline + BackgroundTasks + SIEM logging
 │       │   ├── profiler_service.py   ← pattern detection engine
 │       │   ├── alert_service.py
 │       │   ├── geo_service.py
+│       │   ├── mitre_service.py      ← maps events to MITRE techniques
 │       │   ├── report_service.py     ← exports CSV, Excel, PDF summaries
 │       │   └── email_service.py      ← SMTP email alerting agent
 │       ├── honeypots/
@@ -145,6 +151,7 @@ honeycloud/
 │       │   └── rdp_honeypot.py
 │       └── ml/
 │           ├── detector.py           ← Keras LSTM wrapper
+│           ├── rf_detector.py        ← Scikit-Learn Random Forest wrapper
 │           └── features.py           ← 10-feature extraction pipeline
 │
 └── frontend/
@@ -324,9 +331,18 @@ All protected routes require `Authorization: Bearer <token>` unless otherwise no
 ### ML Engine
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/ml/status` | Required | Model status + features |
-| POST | `/api/v1/ml/train` | Admin | Train on stored events |
-| POST | `/api/v1/ml/predict` | Required | Single-event prediction (debug) |
+| GET | `/api/v1/ml/status` | Required | Models status + features (both LSTM and RF) |
+| POST | `/api/v1/ml/train` | Admin | Train LSTM model on stored events |
+| POST | `/api/v1/ml/predict` | Required | Single-event prediction using LSTM (debug) |
+| POST | `/api/v1/ml/train-rf` | Admin | Train Random Forest model on stored events |
+| POST | `/api/v1/ml/predict-rf` | Required | Single-event prediction using Random Forest (debug) |
+
+### MITRE ATT&CK
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/mitre/techniques` | Required | List all known MITRE ATT&CK techniques |
+| GET | `/api/v1/mitre/stats` | Required | Aggregated technique & tactic counts |
+| GET | `/api/v1/mitre/event/{event_id}` | Required | Technique mappings for a specific event |
 
 ### Reports & Stats
 | Method | Path | Auth | Description |
@@ -371,6 +387,25 @@ score = (critical_events × 4) + (high_events × 2)
 
 ---
 
+## MITRE ATT&CK Integration
+
+HoneyCloud automatically maps incoming attack event signatures to known techniques under the MITRE ATT&CK matrix in the background.
+
+### Supported Techniques
+
+| ID | Technique Name | Tactic | Description & Mapping Rule |
+|----|----------------|--------|----------------------------|
+| **T1110** | Brute Force | Credential Access | Triggered when `username` and `password` are both supplied (90% confidence on SSH/FTP/TELNET/RDP, 70% otherwise). |
+| **T1059** | Command & Scripting Interpreter | Execution | Triggered when matching interpreter shells (`bash`, `sh`, `zsh`, `python`, `powershell`, `cmd.exe`, etc.) or execution commands (`exec`, `eval`) in input. |
+| **T1003** | OS Credential Dumping | Credential Access | Triggered when searching for credential files/utilities (`/etc/shadow`, `/etc/passwd`, `mimikatz`, `secretsdump`, `lsass`, etc.). |
+| **T1046** | Network Service Discovery | Discovery | Triggered when network scanning tool names (`nmap`, `netstat`, `netcat`, `nc`, `portscan`, `traceroute`) are detected. |
+| **T1190** | Exploit Public-Facing Application | Initial Access | Triggered for HTTP events that match common injection patterns (`union select`, `../`, `<script`, etc.). |
+| **T1078** | Valid Accounts | Defense Evasion | Triggered when login attempts use well-known default administrative usernames (e.g., `root`, `admin`, `administrator`, `postgres`, `mysql`). |
+
+Technique mappings are persisted to the database and can be queried for individual events or in aggregate to build tactic/technique heatmaps.
+
+---
+
 ## Analytics Engine
 
 7 analytics endpoints backed by optimised raw SQL queries:
@@ -385,37 +420,61 @@ score = (critical_events × 4) + (high_events × 2)
 
 ## ML Engine
 
+HoneyCloud uses a dual-model machine learning architecture for real-time classification of attack severity and threat cross-verification.
+
 ### Features (10 dimensions)
+
+Both models leverage the same 10-dimensional numeric and text feature vector extracted from incoming events:
 ```
-service_port          – protocol port (SSH=22, FTP=21, HTTP=80)
-username_len          – character length of attempted username
-password_len          – character length of attempted password
-command_len           – character length of command / path
-source_port           – originating port
-hour_of_day           – hour (0–23) from event timestamp
+service_port            – protocol port (SSH=22, FTP=21, HTTP=80, etc.)
+username_len            – character length of attempted username
+password_len            – character length of attempted password
+command_len             – character length of command / path
+source_port             – originating port
+hour_of_day             – hour (0–23) from event timestamp
 dangerous_pattern_count – count of matched dangerous regex patterns
-is_root_user          – 1 if username in {root, admin, administrator}
-is_anonymous_user     – 1 if username in {anonymous, guest, visitor}
-has_command           – 1 if command/path is non-empty
+is_root_user            – 1 if username in {root, admin, administrator}
+is_anonymous_user       – 1 if username in {anonymous, guest, visitor}
+has_command             – 1 if command/path is non-empty
 ```
 
-### Labels
+### Models
 
-| Label | Condition |
-|-------|-----------|
-| `benign` | LSTM prediction < 0.5 |
-| `anomaly` | Reserved label (compatibility) |
-| `malicious` | LSTM prediction ≥ 0.5 |
-| `unknown` | Model not yet trained |
+#### 1. Primary Model: Keras LSTM
+* **Type**: Deep Learning LSTM sequence classifier (evaluates command inputs sequentially).
+* **Saved Model**: `data/ml_model.keras` (+ `tokenizer.pkl`).
+* **Labels**:
+  | Label | Condition |
+  |-------|-----------|
+  | `benign` | LSTM prediction score < 0.5 |
+  | `malicious` | LSTM prediction score ≥ 0.5 |
+  | `unknown` | Model not yet trained |
 
-### Train / retrain cycle
-```bash
-# After accumulating ≥ 50 events via API:
-curl -X POST http://localhost:8000/api/v1/ml/train \
-  -H "Authorization: Bearer $TOKEN"
-```
+#### 2. Secondary Model: Scikit-Learn Random Forest
+* **Type**: Random Forest Classifier (100 estimators) for cross-verification.
+* **Saved Model**: `data/rf_model.pkl`.
+* **Labels**:
+  | Label | Condition |
+  |-------|-----------|
+  | `benign` | Low severity / threat features |
+  | `suspicious` | Medium severity / scanned features |
+  | `malicious` | High/Critical severity / malicious patterns |
+  | `unknown` | Model not yet trained |
 
-Model persists to `data/ml_model.keras` (+ `tokenizer.pkl`) and is reloaded on restart.
+### Model Training & Retraining
+
+Models are trained on stored historical events (minimum 50 required).
+
+* **Train LSTM**:
+  ```bash
+  curl -X POST http://localhost:8000/api/v1/ml/train -H "Authorization: Bearer $TOKEN"
+  ```
+* **Train Random Forest**:
+  ```bash
+  curl -X POST http://localhost:8000/api/v1/ml/train-rf -H "Authorization: Bearer $TOKEN"
+  ```
+
+Models persist to `data/` and are reloaded automatically on service start.
 
 ---
 
@@ -455,6 +514,7 @@ Single-file SPA at `/dashboard.html` — no build step required.
 | **Live Feed** | WebSocket-powered event table; filter by service/severity; max 200 rows |
 | **Analytics** | 30-day timeline, service trend, geographic top-12 bar chart |
 | **Profiles** | IP risk table; block/unblock actions; click IP for full detail panel |
+| **MITRE ATT&CK** | Technique and tactic breakdown charts (Chart.js) + mapped technique details list |
 | **Heatmap** | 24×7 colour-gradient attack timing matrix |
 | **Credentials** | Top-15 usernames, passwords, and commands with animated bar charts |
 
