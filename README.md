@@ -171,6 +171,9 @@ cd honeycloud
 cp .env.example .env
 # Generate a secret key with python -c "import secrets; print(secrets.token_hex(32))" and add to .env
 # Review .env to set DATABASE_URL, TELEGRAM_*, rate limits, and honeypot ports.
+
+> [!WARNING]
+> **Database Password Constraint:** Do not use special characters such as `@`, `:`, `/`, or `?` in your `POSTGRES_PASSWORD`. Since this password is dynamically interpolated into the database connection URL inside `docker-compose.yml`, special characters will break connection string parsing (e.g., a password like `Ganesh@123` causes a database lookup failure for host `123@postgres`). Use alphanumeric characters and underscores instead (e.g., `Ganesh123`).
 ```
 
 > Note: `SECRET_KEY` must be at least 32 characters (enforced in config).
@@ -185,7 +188,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build  # dev
 
 | URL | Description |
 |-----|-------------|
-| http://localhost | Dashboard (login: admin / admin123) |
+| http://localhost | Dashboard (login: `owner / owner123` or `admin / admin123`) |
 | http://localhost:8000/docs | API docs (DEBUG mode only) |
 | ws://localhost:8000/api/v1/events/ws?token=JWT | WebSocket feed |
 
@@ -206,10 +209,11 @@ curl -X POST http://localhost:8000/api/v1/ml/train -H "Authorization: Bearer $TO
 
 ### Default credentials
 
-| Username | Password | Role |
-|----------|----------|------|
-| `admin` | `admin123` | Admin (full access) |
-| `analyst` | `analyst123` | Analyst (read-only) |
+| Username | Password | Role | Description |
+|----------|----------|------|-------------|
+| `owner` | `owner123` | Owner | Superuser (full permissions + user management) |
+| `admin` | `admin123` | Admin | Administrator (threat rules, block/unblock, retrain ML) |
+| `analyst` | `analyst123` | Analyst | Security Analyst (read-only views) |
 
 ---
 

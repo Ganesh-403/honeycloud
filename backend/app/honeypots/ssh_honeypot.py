@@ -31,7 +31,7 @@ FAKE_RESPONSES = {
 }
 
 
-class _HoneypotServerInterface(asyncssh.SSHServerInterface if HAS_ASYNCSSH else object):
+class _HoneypotServerInterface(asyncssh.SSHServer if HAS_ASYNCSSH else object):
     """Accepts ALL authentication attempts – that's the point of a honeypot."""
 
     def __init__(self, honeypot: SSHHoneypot, peer_addr: str, peer_port: int):
@@ -123,12 +123,29 @@ class SSHHoneypot(BaseHoneypot):
             peer = ("0.0.0.0", 0)
             return _HoneypotSession(self, username, *peer)
 
+        import os
+        key_path = "data/ssh_host_key"
+        os.makedirs(os.path.dirname(key_path), exist_ok=True)
+
         try:
+            if os.path.exists(key_path):
+                try:
+                    host_key = asyncssh.import_private_key(open(key_path, "rb").read())
+                    logger.info("[SSH] Loaded existing host key from %s", key_path)
+                except Exception as e:
+                    logger.warning("[SSH] Failed to load host key from %s: %s. Generating new...", key_path, e)
+                    host_key = asyncssh.generate_private_key("ssh-rsa")
+                    host_key.write_private_key(key_path)
+            else:
+                logger.info("[SSH] Host key not found. Generating new at %s...", key_path)
+                host_key = asyncssh.generate_private_key("ssh-rsa")
+                host_key.write_private_key(key_path)
+
             self._server = await asyncssh.create_server(
                 server_factory,
                 host="",
                 port=port,
-                server_host_keys=["ssh_host_key"],
+                server_host_keys=[host_key],
                 process_factory=None,
                 session_factory=session_factory,
                 server_version=f"SSH-2.0-OpenSSH_8.9p1 {FAKE_BANNER}",

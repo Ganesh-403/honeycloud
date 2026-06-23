@@ -69,7 +69,7 @@ class BaseHoneypot(abc.ABC):
         Forward event to the FastAPI ingest endpoint over localhost asynchronously.
         Fire-and-forget; logs errors but never raises.
         """
-        url = f"http://127.0.0.1:8000{self._settings.API_V1_PREFIX}/ingest"
+        url = f"http://127.0.0.1:8000{self._settings.API_V1_PREFIX}/events/ingest"
 
         async def _do_post():
             try:
